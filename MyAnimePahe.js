@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyAnimePahe 
 // @namespace    MyAnimePahe
-// @version      1.0
+// @version      0.1
 // @description  Adds anime saving and episode tracking feature to AnimePahe
 // @author       Xpopy
 // @match        https://animepahe.com/*
@@ -445,7 +445,6 @@
 			var container = $('.anime-list');
 			for (var animeID in animes){
 				populateAnimeList(animeID, animes[animeID], container);
-				console.log(animeID, animes[animeID]);
 			}
 
 
@@ -561,7 +560,6 @@
 			//On input update save episode count
 			$(".episodes-seen").on("input", function(){
 				var episodeNumber = parseInt( $('input.episodes-seen').val() );
-				console.log(episodeNumber);
 				updateEpisodes(id, episodeNumber, true);
 			});
 		}
