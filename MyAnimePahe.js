@@ -10,6 +10,8 @@
 // @run-at       document-end
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_listValues
+// @grant        GM_deleteValue
 // ==/UserScript==
 
 
@@ -284,40 +286,32 @@
 		/**
 		 * Detect progress in video and mark it as seen if progress passed a certain threshold
 		 */
-		function checkProgress(epHash){
-
-			//Reset currentTime and duration so we don't use values from last watched episode
-			// GM_setValue("currentTime", 0);
-			// GM_setValue("currentDuration", 0);
-
-			var handshake = GM_getValue('handshake', []);
-
-			handshake.push(epHash);
-			GM_setValue('handshake', handshake);
-			GM_setValue(epHash, {currentTime: 0, currentDuration: 0});
-
+		function checkProgress(){
 			//Get currentTime and duration of video every x seconds
 		 	//Then check currentTime against duration to then check the .episode-seen checkbox
 			var interval = setInterval(function(){
+				var key = $('iframe.embed-responsive-item').attr('src');
+				var stream = GM_getValue(key, undefined);
+				
+				if( stream != undefined){
+					var time = stream.currentTime;
+					var duration = stream.currentDuration;
+					var percentage = 0.85;
+					var timeReduction = 120;
 
-				var stream = GM_getValue(epHash);
-				var time = stream.currentTime;
-				var duration = stream.currentDuration;
-				var percentage = 0.85;
-				var timeReduction = 120;
+					//Only run if we got a duration update
+					if(duration > 0 && time > 0 ){
 
-				//Only run if we got a duration update
-				if(duration > 0 && time > 0 ){
-
-					//magical math
-					var reducedDuration = duration - timeReduction;
-					if(time/reducedDuration > percentage){
-						$('.episode-seen').prop("checked", true);
-						if(id in animes){
-							var episodeNumber = parseInt( $('.theatre-info h1').text().split("-")[1].split(" ")[1] );
-							updateEpisodes(id, episodeNumber);
+						//magical math
+						var reducedDuration = duration - timeReduction;
+						if(time/reducedDuration > percentage){
+							$('.episode-seen').prop("checked", true);
+							if(id in animes){
+								var episodeNumber = parseInt( $('.theatre-info h1').text().split("-")[1].split(" ")[1] );
+								updateEpisodes(id, episodeNumber);
+							}
+							clearInterval(interval);	//stop interval
 						}
-						clearInterval(interval);	//stop interval
 					}
 				}
 			}, 3000); //Run every 3 seconds
@@ -437,13 +431,13 @@
 
 
 			//Update the amount of released episodes for each anime (or use cached)
-			for (var animeID in animes){
+			for (let animeID in animes){
 				updateReleasedEpisodes(animeID);
 			}
 
 			//Loop through every subscribed anime and add them to frontpage
 			var container = $('.anime-list');
-			for (var animeID in animes){
+			for (let animeID in animes){
 				populateAnimeList(animeID, animes[animeID], container);
 			}
 
@@ -503,7 +497,7 @@
 			});
 
 			//Detect progress in video and mark it as seen if progress passed a certain threshold
-			checkProgress(epHash);
+			checkProgress();
 
 		} else if (subPage == "anime") {
 
@@ -571,25 +565,13 @@
 	 */
 	function kwik(){
 		var video = undefined;
-		var epHash = undefined;
-
-		var handshakePeriod = setInterval(function(){
-			var handshake = GM_getValue('handshake', []);
-
-			if( handshake.length != 0 ){
-				epHash = handshake.shift()
-				GM_setValue('handshake', handshake);
-				clearInterval(handshakePeriod);
-			}
-		}, 100);
+		var url = window.location.href;
 
 		setInterval(function(){
-			if(epHash){
-				if(video){
-					GM_setValue(epHash, {currentTime: video.currentTime, currentDuration: video.duration});
-				} else {
-					video = $("video")[0];
-				}
+			if(video){
+				GM_setValue(url, {currentTime: video.currentTime, currentDuration: video.duration, date: new Date()});
+			} else {
+				video = $("video")[0];
 			}
 		}, 3000);
 		
