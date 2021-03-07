@@ -338,7 +338,7 @@
 			var currentDate = new Date();
 
 			//Dont update if current date is lower than predicted next release time
-			if(animes[animeID].nextUpdate || currentDate < nextUpdate){
+			if(animes[animeID].nextUpdate && currentDate < nextUpdate){
 				return;
 			}
 
