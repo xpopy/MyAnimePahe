@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyAnimePahe 
 // @namespace    MyAnimePahe
-// @version      0.1
+// @version      1.0
 // @description  Adds anime saving and episode tracking feature to AnimePahe
 // @author       Xpopy
 // @match        https://animepahe.com/*
@@ -17,6 +17,20 @@
 
 (function() {
     'use strict';
+
+	const _24hours = 1000*60*60**24;
+
+	//Make sure to clear data (from streams) if they're not in use
+	var data = GM_listValues();
+	for (let index = 0; index < data.length; index++) {
+		const key = data[index];
+		if (key.split('/')[2] == "kwik.cx"){
+			var stream = GM_getValue(key);
+			if (new Date() - new Date(stream.date) > _24hours){
+				GM_deleteValue(key);
+			}
+		}
+	}
 
 	if(location.hostname == "animepahe.com"){
 		//Run code on animepahe
