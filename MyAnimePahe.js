@@ -186,14 +186,15 @@
 				position: relative;
 				margin: 0 0 30px;
 				min-height: 240px;
+				justify-content: center;
 			}
 			section.animelist-main .content-wrapper .anime-list.row:empty::after {
 				content: "You aren't tracking any series! Track an anime to see it here";
 			}
 			.anime-item {
 				width: 161px;
-				margin-right: 12px;
-				margin-left: 12px;
+				margin-right: 11px;
+				margin-left: 11px;
 				margin-bottom: 22px;
 				position: relative;
 				overflow: hidden;
