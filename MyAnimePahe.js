@@ -303,8 +303,9 @@
 
 		/**
 		 * Detect progress in video and mark it as seen if progress passed a certain threshold
+		 * @param {string} id The ID of the anime
 		 */
-		function checkProgress(){
+		function checkProgress(id){
 			//Get currentTime and duration of video every x seconds
 		 	//Then check currentTime against duration to then check the .episode-seen checkbox
 			var interval = setInterval(function(){
@@ -326,7 +327,7 @@
 							$('.episode-seen').prop("checked", true);
 							if(id in animes){
 								var episodeString = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
-								var episodeNumber = episodeString * 1 //convert from string to either int or float
+								var episodeNumber = episodeString * 1; //convert from string to either int or float
 								updateEpisodes(id, episodeNumber);
 							}
 							clearInterval(interval);	//stop interval
