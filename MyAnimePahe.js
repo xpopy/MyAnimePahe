@@ -184,7 +184,7 @@
 			}
 			section.animelist-main .content-wrapper .anime-list-wrapper .anime-list {
 				position: relative;
-				margin: 0 -5px 30px;
+				margin: 0 0 30px;
 				min-height: 240px;
 			}
 			.anime-item {
