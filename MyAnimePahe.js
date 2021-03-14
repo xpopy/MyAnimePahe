@@ -389,12 +389,13 @@
 							<span class="cover-seen-episodes tracker-tooltip">` + anime.episodesSeen + `
 								<span class="tooltiptext">Seen</span>
 							</span>
-							/
-							<span class="cover-released-episodes tracker-tooltip">` + anime.episodesReleased + ` 
+							/ ` + 
+							(anime.episodesReleased == anime.episodesMax ? "" : 
+							`<span class="cover-released-episodes tracker-tooltip">` + anime.episodesReleased + ` 
 								<span class="tooltiptext">Released</span>
 							</span>
-							/
-							<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
+							/ `) +
+							`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
 								<span class="tooltiptext">Total</span>
 							</span>
 						</div>
