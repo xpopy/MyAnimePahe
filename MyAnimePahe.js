@@ -419,16 +419,10 @@
 		   return result;
 		}
 
-		//Get url location
-		var urlSplits = window.location.href.split("/");
-		var subPage = urlSplits[3];
-		var idHash = urlSplits[4];
-		var epHash = urlSplits[5];
-		
-
-		//Run different code depending on which subPage we're in
-		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
-		
+		/**
+		 * All the code for the home page
+		 **/
+		function homePage() {
 			//Insert container for currently watching animes
 			$('.main-header').after(`
 			<section style="" class="animelist-main">
@@ -454,64 +448,12 @@
 			for (let animeID in animes){
 				populateAnimeList(animeID, animes[animeID], container);
 			}
+		}
 
-		} else if (subPage == "play") {
-
-			//Create track/remove buttons
-			$('.theatre-info').append(`
-				<div id="animetracker">
-					<div class="track-button add-anime hidden">Track anime</div>
-					<div class="tracker-episodes hidden">
-						Mark as seen 
-						<input class="episode-seen" type="checkbox">
-					</div> 
-				</div>`
-			);
-
-			var data = syncAjax('https://animepahe.com/anime/' + idHash);
-			var id = data.match(/(?<=anime-)\d+/)[0];
-			try {
-				var episodesMax = data.match(/(?<=<\/strong> )\d+(?=<)/)[0];
-			} catch (TypeError) {
-				var episodesMax = "?"
-			}
-			
-			var episodeNumber = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
-			episodeNumber = episodeNumber * 1; // convert string to either int or float
-
-			//Set proper values and classes depending on if the anime is added or not
-			if(id in animes){
-				$('.tracker-episodes').removeClass('hidden');
-				if (animes[id].episodesSeen >= episodeNumber){
-					$('.episode-seen').prop("checked", true);
-				}
-			} else {
-				$('.track-button').removeClass('hidden');
-			}
-
-
-			//On click add anime to list
-			$('.track-button').click(function() {
-				var name = $(".theatre-info h1 a").text();
-				var thumbnailSmall = $(".anime-poster").attr("src");
-				var thumbnail = thumbnailSmall.replace('.th.', '.');
-				addAnime(id, name, thumbnail, episodesMax, episodeNumber);
-				$(this).addClass("hidden");
-				$('.tracker-episodes').removeClass('hidden');
-			});
-
-			//Detect changes to episode-seen
-			$('.episode-seen').change(function () {
-				if( $(this).is(":checked") ){
-					updateEpisodes(id, episodeNumber);
-				}
-			});
-
-			//Detect progress in video and mark it as seen if progress passed a certain threshold
-			checkProgress();
-
-		} else if (subPage == "anime") {
-
+		/**
+		 * All the code for the anime info page
+		 **/
+		function animePage() {
 			//Insert html code
 			$('.anime-content').append(`
 				<div id="animetracker">
@@ -567,6 +509,78 @@
 				var episodeNumber = parseInt( $('input.episodes-seen').val() );
 				updateEpisodes(id, episodeNumber, true);
 			});
+		}
+
+		/**
+		 * All the code for the player page
+		 **/
+		function playerPage(idHash) {
+			//Create track/remove buttons
+			$('.theatre-info').append(`
+				<div id="animetracker">
+					<div class="track-button add-anime hidden">Track anime</div>
+					<div class="tracker-episodes hidden">
+						Mark as seen 
+						<input class="episode-seen" type="checkbox">
+					</div> 
+				</div>`
+			);
+
+			var data = syncAjax('https://animepahe.com/anime/' + idHash);
+			var id = data.match(/(?<=anime-)\d+/)[0];
+			try {
+				var episodesMax = data.match(/(?<=<\/strong> )\d+(?=<)/)[0];
+			} catch (TypeError) {
+				var episodesMax = "?"
+			}
+			
+			var episodeNumber = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
+			episodeNumber = episodeNumber * 1; // convert string to either int or float
+
+			//Set proper values and classes depending on if the anime is added or not
+			if(id in animes){
+				$('.tracker-episodes').removeClass('hidden');
+				if (animes[id].episodesSeen >= episodeNumber){
+					$('.episode-seen').prop("checked", true);
+				}
+			} else {
+				$('.track-button').removeClass('hidden');
+			}
+
+
+			//On click add anime to list
+			$('.track-button').click(function() {
+				var name = $(".theatre-info h1 a").text();
+				var thumbnailSmall = $(".anime-poster").attr("src");
+				var thumbnail = thumbnailSmall.replace('.th.', '.');
+				addAnime(id, name, thumbnail, episodesMax, episodeNumber);
+				$(this).addClass("hidden");
+				$('.tracker-episodes').removeClass('hidden');
+			});
+
+			//Detect changes to episode-seen
+			$('.episode-seen').change(function () {
+				if( $(this).is(":checked") ){
+					updateEpisodes(id, episodeNumber);
+				}
+			});
+
+			//Detect progress in video and mark it as seen if progress passed a certain threshold
+			checkProgress();
+		}
+		
+		//Get url location
+		var urlSplits = window.location.href.split("/");
+		var subPage = urlSplits[3];
+		var idHash = urlSplits[4];
+
+		//Run different code depending on which subPage we're in
+		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
+			homePage();
+		} else if (subPage == "anime") {
+			animePage()
+		} else if (subPage == "play") {
+			playerPage(idHash)
 		}
 	}
 
