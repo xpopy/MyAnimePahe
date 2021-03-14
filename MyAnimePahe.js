@@ -292,7 +292,7 @@
 		 * @param {int} episodes the new value of episdes
 		 */
 		function updateEpisodes(id, episodes, allowDecrease=false) {
-			//Dont update anime progress if current progress is higher than new value
+			//Dont update anime progress if episodesSeen is higher than new value
 			animes = GM_getValue('animes', {});
 			if( !allowDecrease && animes[id].episodesSeen > episodes ){
 				return;
