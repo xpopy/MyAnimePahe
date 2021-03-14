@@ -572,7 +572,7 @@
 			});
 
 			//Detect progress in video and mark it as seen if progress passed a certain threshold
-			checkProgress();
+			checkProgress(id);
 		}
 		
 		//Get url location
