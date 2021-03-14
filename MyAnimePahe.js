@@ -36,7 +36,7 @@
 		//Run code on animepahe
 		animepahe();
 	} else if (location.hostname == "kwik.cx"){
-		//Run code on kwik
+		//Run code on kwik (iframed video)
 		kwik();
 	}
 
@@ -98,7 +98,6 @@
 			.hidden {
 				display:none;
 			}
-
 			/* Tooltip container */
 			.tracker-tooltip {
 				position: relative;
@@ -265,7 +264,8 @@
 			if(isNaN(episodesMax)){
 				episodesMax = '?'
 			} else {
-				episodesMax = parseInt(episodesMax) + offset;
+				episodesMax = episodesMax * 1 //convert from string to either int or float
+				episodesMax =+ offset;
 			}
 			animes[id] = {name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset};
 			GM_setValue("animes", animes);
@@ -321,7 +321,8 @@
 						if(time/reducedDuration > percentage){
 							$('.episode-seen').prop("checked", true);
 							if(id in animes){
-								var episodeNumber = parseInt( $('.theatre-info h1').text().split("-")[1].split(" ")[1] );
+								var episodeString = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
+								var episodeNumber = episodeString * 1 //convert from string to either int or float
 								updateEpisodes(id, episodeNumber);
 							}
 							clearInterval(interval);	//stop interval
@@ -443,7 +444,6 @@
 				</article>
 			</section>`);
 
-
 			//Update the amount of released episodes for each anime (or use cached)
 			for (let animeID in animes){
 				updateReleasedEpisodes(animeID);
@@ -454,7 +454,6 @@
 			for (let animeID in animes){
 				populateAnimeList(animeID, animes[animeID], container);
 			}
-
 
 		} else if (subPage == "play") {
 
@@ -477,6 +476,9 @@
 				var episodesMax = "?"
 			}
 			
+			var episodeNumber = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
+			episodeNumber = episodeNumber * 1; // convert string to either int or float
+
 			//Set proper values and classes depending on if the anime is added or not
 			if(id in animes){
 				$('.tracker-episodes').removeClass('hidden');
@@ -487,17 +489,12 @@
 				$('.track-button').removeClass('hidden');
 			}
 
-			var episodeNumber = parseInt( $('.theatre-info h1').text().split("-")[1].split(" ")[1] );
 
 			//On click add anime to list
 			$('.track-button').click(function() {
 				var name = $(".theatre-info h1 a").text();
 				var thumbnailSmall = $(".anime-poster").attr("src");
 				var thumbnail = thumbnailSmall.replace('.th.', '.');
-				episodeNumber = 0;
-				if($('.episode-seen').is(":checked")){
-					episodeNumber = parseInt( $('.theatre-info h1').text().split("-")[1].split(" ")[1] );
-				}
 				addAnime(id, name, thumbnail, episodesMax, episodeNumber);
 				$(this).addClass("hidden");
 				$('.tracker-episodes').removeClass('hidden');
