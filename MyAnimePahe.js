@@ -516,6 +516,7 @@
 				if(animes[id].episodesMax == '?'){
 					var episodesMax = parseInt($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
 					if(!isNaN(episodesMax)){
+						animes = GM_getValue('animes', {});
 						episodesMax += animes[id].offset;
 						animes[id].episodesMax = episodesMax;
 						GM_setValue("animes", animes);
