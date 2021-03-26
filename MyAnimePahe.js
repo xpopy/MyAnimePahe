@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyAnimePahe 
 // @namespace    MyAnimePahe
-// @version      1.1
+// @version      1.2
 // @description  Adds anime saving and episode tracking feature to AnimePahe
 // @author       Xpopy
 // @match        https://animepahe.com/*
