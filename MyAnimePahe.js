@@ -372,7 +372,11 @@
 			}
 
 			animes = GM_getValue('animes', {});
-			animes[animeID].episodesReleased = lastepisode.episode;
+			if(lastepisode.episode2 > lastepisode.episode){
+				animes[animeID].episodesReleased = lastepisode.episode2;
+			} else {
+				animes[animeID].episodesReleased = lastepisode.episode;
+			}
 			animes[animeID].nextUpdate = date;
 			GM_setValue("animes", animes);
 		}
