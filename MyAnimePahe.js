@@ -343,7 +343,7 @@
 		 */
 		function updateReleasedEpisodes(animeID){
 			//Don't update if released episodes == max episodes
-			// or if max episodes == '?'
+
 			if( animes[animeID].episodesMax != '?' && animes[animeID].episodesReleased >= animes[animeID].episodesMax){
 				return;
 			}
