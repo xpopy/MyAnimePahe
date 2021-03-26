@@ -243,6 +243,29 @@
 				padding: 20px;
 				box-sizing: content-box;
 			}
+			.anime-item .countdown-next-release {
+				position: absolute;
+				top: 0;
+				right: 0;
+				text-shadow: 0 0 4px black;
+				padding: 0px 5px;
+			}
+			.anime-item .countdown-container {
+				position: absolute;
+				top: 1px;
+				right: 0;
+				width: 30px;
+				text-align: center;
+			}
+			.triangle {
+				width: 0;
+				height: 0;
+				border-top: 50px solid #000000a8;
+				border-left: 50px solid transparent;
+				position: absolute;
+				top: 0;
+				right: 0;
+			}
 			.anime-link {
 				color: white;
 				font-size: 15px;
@@ -364,42 +387,46 @@
 		 */
 		function updateReleasedEpisodes(animeID){
 			//Don't update if released episodes == max episodes
-
 			if( animes[animeID].episodesMax != '?' && animes[animeID].episodesReleased >= animes[animeID].episodesMax){
 				return;
 			}
 			
-			var nextUpdate = new Date(animes[animeID].nextUpdate);
+			//Dont update if current date is lower than predicted next release time (minus 2 hours for margin)
+			var nextUpdate = new Date(animes[animeID].predictedRelease);
+			nextUpdate.setHours(nextUpdate.getHours() - 2);
 			var currentDate = new Date();
-
-			//Dont update if current date is lower than predicted next release time
 			if(animes[animeID].nextUpdate && currentDate < nextUpdate){
 				return;
 			}
 
-			//Get latest episodes
+			//Get latest episode
 			var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
 			var lastepisode = data.data[0];
+
+			var lastEpisode = lastepisode.episode > lastepisode.episode2 ? lastepisode.episode : lastepisode.episode2;
 			
+			if(animes[animeID].episodesReleased == lastEpisode){ //There's been no new episodes
+				//if current time is more than 10h over predicted releasedate then add 7 days
+				var predictedRelease = new Date(animes[animeID].predictedRelease);
+				var diff = currentDate - predictedRelease;
+				var diffHours = diff / 3600000 ;// 1000*60*60
+				if(diffHours > 10){
+					predictedRelease.setDate(predictedRelease.getDate() + 7);
+					animes = GM_getValue('animes', {});
+					animes[animeID].predictedRelease = nextPredictedRelease;
+					GM_setValue("animes", animes);
+				}
 
-			//set nextUpdate in 6 days after last episodes created day
-			var date = new Date(lastepisode.created_at);
-			date.setDate(date.getDate() + 6);
+			} else { //There's a new episode, update
+				//Predicted next release (7 days from last one)
+				var nextPredictedRelease = new Date(lastepisode.created_at);
+				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
-			//If we're past that date then extend time by 1h
-			if(currentDate > date){
-				date = currentDate;
-				date.setTime(date.getTime() + (1*60*60*1000));
+				animes = GM_getValue('animes', {});
+				animes[animeID].predictedRelease = nextPredictedRelease;
+				animes[animeID].episodesReleased = lastEpisode;
+				GM_setValue("animes", animes);
 			}
-
-			animes = GM_getValue('animes', {});
-			if(lastepisode.episode2 > lastepisode.episode){
-				animes[animeID].episodesReleased = lastepisode.episode2;
-			} else {
-				animes[animeID].episodesReleased = lastepisode.episode;
-			}
-			animes[animeID].nextUpdate = date;
-			GM_setValue("animes", animes);
 		}
 
 		/**
@@ -408,12 +435,32 @@
 		 * @param {dict} anime The anime as a dict: {name, thumbnail, episodesSeen}
 		 */
 		function populateAnimeList(animeID, anime, container){
+
+			if(anime.episodesReleased != anime.episodesMax){
+				var predictedRelease = new Date(animes[animeID].predictedRelease);
+				var currentDate = new Date();
+				var diff = predictedRelease - currentDate;
+				var timeLeft = diff / (1000*60);
+				var timeLeftUnit = "min";
+
+				if(timeLeft > 60){
+					timeLeft = timeLeft / 60;
+					timeLeftUnit = "h";
+					
+					if(timeLeft > 24){
+						timeLeft = timeLeft / 24;
+						timeLeftUnit = "d";
+					}
+				}
+			}
+			
+
 			$(container).append(`
 				<div class="anime-item">
 					<div class="anime-item-cover">
 						<img src="` + anime.thumbnail + `" alt=""></img>
 						<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
-						<a class="play-next" href=https://pahe.win/a/` + animeID + `/` + (anime.episodesSeen + 1) +`">
+						<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.episodesSeen + 1) +`">
 							<clippath>
 								<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
 									<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
@@ -421,6 +468,15 @@
 								</svg>
 							</clippath>
 						</a>
+						` + 
+						(anime.episodesReleased == anime.episodesMax ? "" : `
+						<div class="triangle"></div>
+							<div class="countedown-container"> <span class="countdown-next-release tracker-tooltip">
+								` + Math.round(timeLeft) + " " +timeLeftUnit + `
+								<span class="tooltiptext">Predicted next episode</span>
+							</span>
+						</div>
+						`) + `
 					</div>
 					<div class="anime-text-container">
 						<div class="episode-container">
@@ -439,7 +495,8 @@
 						</div>
 						<a href="https://pahe.win/a/` + animeID + `" class="anime-link">` + anime.name + `</a>
 					</div>
-				</div>`);
+				</div>
+			`);
 		}
 
 		/**
