@@ -269,7 +269,7 @@
 				episodesMax = '?'
 			} else {
 				episodesMax = episodesMax * 1 //convert from string to either int or float
-				episodesMax =+ offset;
+				episodesMax += offset;
 			}
 			animes[id] = {name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset};
 			GM_setValue("animes", animes);
