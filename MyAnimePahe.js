@@ -222,6 +222,27 @@
 				width: 100%;
 				height: 100%;
 			}
+			.anime-item .play-next{
+				position: absolute;
+				top: 0;
+				bottom: 80px;
+				left: 0;
+				right: 0;
+				filter: drop-shadow(black 0px 0px 15px);
+				opacity: 0;
+				transition: opacity 0.4s;
+				margin: 20px;
+			}
+			.anime-item:hover .play-next {
+				opacity: 0.5;
+			}
+			.play-next:hover {
+				opacity: 1 !important;
+			}
+			.anime-item .play-next .play-button{
+				padding: 20px;
+				box-sizing: content-box;
+			}
 			.anime-link {
 				color: white;
 				font-size: 15px;
@@ -392,6 +413,14 @@
 					<div class="anime-item-cover">
 						<img src="` + anime.thumbnail + `" alt=""></img>
 						<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
+						<a class="play-next" href=https://pahe.win/a/` + animeID + `/` + (anime.episodesSeen + 1) +`">
+							<clippath>
+								<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
+									<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
+									<polygon points="70, 55 70, 145 145, 100" fill="#fff"></polygon>
+								</svg>
+							</clippath>
+						</a>
 					</div>
 					<div class="anime-text-container">
 						<div class="episode-container">
