@@ -478,6 +478,16 @@
 			if(id in animes){
 				$('.track-button').addClass('remove-anime').text('Remove anime');
 				$('input.episodes-seen').val( animes[id].episodesSeen );
+
+				//If we previously set the total episodes to '?' (unknown) then check if it's been updated
+				if(animes[id].episodesMax == '?'){
+					var episodesMax = parseInt($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
+					if(!isNaN(episodesMax)){
+						episodesMax += animes[id].offset;
+						animes[id].episodesMax = episodesMax;
+						GM_setValue("animes", animes);
+					}
+				}
 			} else {
 				$('.track-button').addClass('add-anime').text('Track anime');
 				$('.tracker-episodes').addClass('hidden');
