@@ -186,7 +186,7 @@
 				position: relative;
 				margin: 0 0 30px;
 				min-height: 240px;
-				justify-content: center;
+				/*justify-content: center;*/
 			}
 			section.animelist-main .content-wrapper .anime-list.row:empty::after {
 				content: "You aren't tracking any series! Track an anime to see it here";
