@@ -244,7 +244,7 @@
 				box-sizing: content-box;
 			}
 			.anime-item .countdown-next-release {
-				text-shadow: 0 0 4px black, 0 0 8px black, 0 0 14px black;
+				text-shadow: 0 0 4px black, 0 0 4px black, 0 0 4px black;
 			}
 			.anime-item .countdown-container {
 				position: absolute;
