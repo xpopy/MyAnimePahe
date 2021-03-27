@@ -471,7 +471,7 @@
 						` + 
 						(anime.episodesReleased == anime.episodesMax ? "" : `
 						<div class="triangle"></div>
-							<div class="countedown-container"> <span class="countdown-next-release tracker-tooltip">
+							<div class="countdown-container"> <span class="countdown-next-release tracker-tooltip">
 								` + Math.round(timeLeft) + " " +timeLeftUnit + `
 								<span class="tooltiptext">Predicted next episode</span>
 							</span>
