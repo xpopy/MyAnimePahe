@@ -244,27 +244,28 @@
 				box-sizing: content-box;
 			}
 			.anime-item .countdown-next-release {
-				position: absolute;
-				top: 0;
-				right: 0;
-				text-shadow: 0 0 4px black;
-				padding: 0px 5px;
+				text-shadow: 0 0 4px black, 0 0 8px black, 0 0 14px black;
 			}
 			.anime-item .countdown-container {
 				position: absolute;
-				top: 1px;
+				top: 0px;
 				right: 0;
-				width: 30px;
+				width: 34px;
 				text-align: center;
 			}
 			.triangle {
 				width: 0;
 				height: 0;
-				border-top: 50px solid #000000a8;
+				border-top: 40px solid #0000;
 				border-left: 50px solid transparent;
 				position: absolute;
 				top: 0;
 				right: 0;
+				transition: 0.4s;
+			}
+			.anime-item:hover .triangle {
+				border-top: 50px solid #000000b0;
+				border-left: 60px solid transparent;
 			}
 			.anime-link {
 				color: white;
