@@ -231,7 +231,7 @@
 				filter: drop-shadow(black 0px 0px 15px);
 				opacity: 0;
 				transition: opacity 0.4s;
-				margin: 20px;
+				margin: 25px;
 			}
 			.anime-item:hover .play-next {
 				opacity: 0.5;
