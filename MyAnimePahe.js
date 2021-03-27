@@ -392,11 +392,11 @@
 				return;
 			}
 			
-			//Dont update if current date is lower than predicted next release time (minus 2 hours for margin)
+			//Dont update if current date is lower than predicted next release time (minus 3 hours for margin)
 			var nextUpdate = new Date(animes[animeID].predictedRelease);
-			nextUpdate.setHours(nextUpdate.getHours() - 2);
 			var currentDate = new Date();
-			if(animes[animeID].nextUpdate && currentDate < nextUpdate){
+			currentDate.setHours(currentDate.getHours() + 3);
+			if(!isNaN(nextUpdate.getTime()) && currentDate < nextUpdate){
 				return;
 			}
 
