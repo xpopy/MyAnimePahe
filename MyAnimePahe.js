@@ -387,38 +387,53 @@
 		 * @param {string} animeID The ID of the anime
 		 */
 		function updateReleasedEpisodes(animeID){
+			
 			//Don't update if released episodes == max episodes
 			if( animes[animeID].episodesMax != '?' && animes[animeID].episodesReleased >= animes[animeID].episodesMax){
 				return;
 			}
 			
-			//Dont update if current date is lower than predicted next release time (minus 3 hours for margin)
+			//Dont update if current date is lower than predicted next release time (minus 1 hours for margin)
 			var nextUpdate = new Date(animes[animeID].predictedRelease);
 			var currentDate = new Date();
-			currentDate.setHours(currentDate.getHours() + 3);
+			currentDate.setHours(currentDate.getHours() + 1);
 			if(!isNaN(nextUpdate.getTime()) && currentDate < nextUpdate){
-				return;
+				//Don't skip if the episode is delayed, we will want to check more just to be sure
+				if(!animes[animeID].delayed){
+					return;
+				}
 			}
 
 			//Get latest episode
 			var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
 			var lastepisode = data.data[0];
-
 			var lastEpisode = lastepisode.episode > lastepisode.episode2 ? lastepisode.episode : lastepisode.episode2;
+
 			
-			if(animes[animeID].episodesReleased == lastEpisode){ //There's been no new episodes
-				//if current time is more than 10h over predicted releasedate then add 7 days
+			//Check if there's a new episode
+			if(animes[animeID].episodesReleased == lastEpisode){ 
+				//There's been no new episodes
 				var predictedRelease = new Date(animes[animeID].predictedRelease);
 				var diff = currentDate - predictedRelease;
 				var diffHours = diff / 3600000 ;// 1000*60*60
+
 				if(diffHours > 10){
+					//if current time is 10h over predicted releasedate then add 7 days
 					predictedRelease.setDate(predictedRelease.getDate() + 7);
 					animes = GM_getValue('animes', {});
-					animes[animeID].predictedRelease = nextPredictedRelease;
+					animes[animeID].predictedRelease = predictedRelease;
+					animes[animeID].delayed = 2; // delayed = 2 means it's delayed over 10 hours
+					GM_setValue("animes", animes);
+
+				} else if(diffHours > 0){
+					//if current time is over predicted releasedate then add delayed
+					animes = GM_getValue('animes', {});
+					animes[animeID].delayed = 1; // delayed = 1 means it's delayed 
 					GM_setValue("animes", animes);
 				}
 
-			} else { //There's a new episode, update
+			} else { 
+				//There's a new episode, update
 				//Predicted next release (7 days from last one)
 				var nextPredictedRelease = new Date(lastepisode.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
@@ -454,7 +469,20 @@
 					}
 				}
 			}
-			
+
+			var time = ''
+			switch (animes[animeID].delayed) {
+				case 1:
+					time += '<i>soon</i>'
+					break;
+				case 0:
+				case 2:
+				default:
+					//if .delayed is set to 0, 2 or undefined then display time normally
+					time += Math.round(timeLeft) + " " + timeLeftUnit;
+					break;
+			}
+
 
 			$(container).append(`
 				<div class="anime-item">
@@ -473,7 +501,7 @@
 						(anime.episodesReleased == anime.episodesMax ? "" : `
 						<div class="triangle"></div>
 							<div class="countdown-container"> <span class="countdown-next-release tracker-tooltip">
-								` + Math.round(timeLeft) + " " +timeLeftUnit + `
+								` + time + ` 
 								<span class="tooltiptext">Predicted next episode</span>
 							</span>
 						</div>
