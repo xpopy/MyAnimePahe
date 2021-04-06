@@ -462,6 +462,24 @@
 
 			} else { 
 				//There's a new episode, update
+
+				//If we're on previously 0 released episodes, check if the new episodes is offset
+				if(animes[animeID].episodesReleased == 0 && lastEpisode > 1){
+
+					//Check for first episode
+					var dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
+					var offset = dataAsc.data[0].episode - 1;
+
+					animes = GM_getValue('animes', {});
+					animes[id].offset = offset;
+					if(!isNaN(episodesMax)){
+						//If we previously set episodesMax, then update it with the new offset
+						animes[id].episodesMax = animes[id].episodesMax + offset;
+					}
+					GM_setValue("animes", animes);
+				}
+
+
 				//Predicted next release (7 days from last one)
 				var nextPredictedRelease = new Date(lastepisode.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
