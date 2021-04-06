@@ -502,7 +502,7 @@
 				var predictedRelease = new Date(animes[animeID].predictedRelease);
 				var currentDate = new Date();
 				var diff = predictedRelease - currentDate;
-				var timeLeft = diff / (1000*60);
+				var timeLeft = diff / 60000; // 1m
 				var timeLeftUnit = "min";
 
 				if(timeLeft > 60){
