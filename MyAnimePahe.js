@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-	const _24hours = 1000*60*60**24;
+	const _24hours = 1000*60*60*24;
 
 	//Make sure to clear data (from streams) if they're not in use
 	var data = GM_listValues();
