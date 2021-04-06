@@ -307,18 +307,32 @@
 		 * @param {any} episodesMax 
 		 */
 		function addAnime(id, name, thumbnail, episodesMax = '?', episode = 0) {
-			animes = GM_getValue('animes', {});
+			//Get released episodes sorted by ascending to get the first episode to get the offset
 			var data = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=0');
-			var offset = data.data[0].episode - 1;
+			var offset = 0;
+
+			//If there's no episodes released data.data will be undefined, so only access it if it exists
+			if(data.data){
+				offset = data.data[0].episode - 1;
+			}
+
+			//episodesMax could possibly be a string or not a number, in those cases set it to '?'
 			if(isNaN(episodesMax)){
 				episodesMax = '?'
 			} else {
 				episodesMax = episodesMax * 1 //convert from string to either int or float
 				episodesMax += offset;
 			}
+			
+			//Add anime to database
+			animes = GM_getValue('animes', {});
 			animes[id] = {name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset};
 			GM_setValue("animes", animes);
-			updateReleasedEpisodes(id);
+
+			//Don't check for released episodes if previous call failed
+			if(data.data){
+				updateReleasedEpisodes(id);
+			}
 		}
 
 		/**
