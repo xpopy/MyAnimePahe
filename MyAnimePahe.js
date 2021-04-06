@@ -420,6 +420,20 @@
 
 			//Get latest episode
 			var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
+
+			//there's a chance there is no episodes out yet, in those cases 
+			if(!data.data){
+				//Don't check again for an hour, dont wannt stress the API
+				var nextPredictedRelease = new Date();
+				nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
+				animes = GM_getValue('animes', {});
+				animes[animeID].predictedRelease = nextPredictedRelease;
+				GM_setValue("animes", animes);
+				return;
+			}
+
+
+			//Get last epsiode
 			var lastepisode = data.data[0];
 			var lastEpisode = lastepisode.episode > lastepisode.episode2 ? lastepisode.episode : lastepisode.episode2;
 
