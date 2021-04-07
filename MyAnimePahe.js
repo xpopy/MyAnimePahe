@@ -471,10 +471,10 @@
 					var offset = dataAsc.data[0].episode - 1;
 
 					animes = GM_getValue('animes', {});
-					animes[id].offset = offset;
-					if(!isNaN(episodesMax)){
+					animes[animeID].offset = offset;
+					if(!isNaN(animes[animeID].episodesMax)){
 						//If we previously set episodesMax, then update it with the new offset
-						animes[id].episodesMax = animes[id].episodesMax + offset;
+						animes[animeID].episodesMax = animes[animeID].episodesMax + offset;
 					}
 					GM_setValue("animes", animes);
 				}
