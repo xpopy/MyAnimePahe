@@ -654,6 +654,17 @@
 						GM_setValue("animes", animes);
 					}
 				}
+
+				//Check if previous thumbnail is failing, in that case fetch a new one
+				var tester = new Image();
+				tester.addEventListener('error', (function () {
+					var thumbnail = $(".youtube-preview").attr("href");
+					animes = GM_getValue('animes', {});
+					animes[id].thumbnail = thumbnail;
+					GM_setValue("animes", animes);
+				}));
+				tester.src = animes[id].thumbnail;
+
 			} else {
 				$('.track-button').addClass('add-anime').text('Track anime');
 				$('.tracker-episodes').addClass('hidden');
