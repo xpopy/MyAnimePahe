@@ -479,7 +479,6 @@
 					GM_setValue("animes", animes);
 				}
 
-
 				//Predicted next release (7 days from last one)
 				var nextPredictedRelease = new Date(lastepisode.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
@@ -528,7 +527,6 @@
 					time += Math.round(timeLeft) + " " + timeLeftUnit;
 					break;
 			}
-
 
 			$(container).append(`
 				<div class="anime-item">
