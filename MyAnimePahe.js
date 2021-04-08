@@ -45,8 +45,6 @@
 	 * Only runs on animepahe.com domains
 	 */
 	function animepahe(){
-		var animes = GM_getValue('animes', {});
-		
 		/**
 		 * Inject CSS into head
 		 * @param {string} styleString A string of CSS styles to be added
@@ -341,7 +339,7 @@
 			var data = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=0');
 			var offset = 0;
 
-			//If there's no episodes released data.data will be undefined, so only access it if it exists
+			//If there's no episodes released, data.data will be undefined, so only access it if it exists
 			if(data.data){
 				offset = data.data[0].episode - 1;
 			}
@@ -483,7 +481,6 @@
 
 			} else { 
 				//There's a new episode, update
-
 				//If we're on previously 0 released episodes, check if the new episodes is offset
 				if(animes[animeID].episodesReleased == 0 && lastEpisode > 1){
 
