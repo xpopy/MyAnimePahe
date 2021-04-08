@@ -657,6 +657,9 @@
 				var tester = new Image();
 				tester.addEventListener('error', (function () {
 					var thumbnail = $(".youtube-preview").attr("href");
+					if (!thumbnail){
+						thumbnail = $(".poster-image").attr("href");
+					}
 					animes = GM_getValue('animes', {});
 					animes[id].thumbnail = thumbnail;
 					GM_setValue("animes", animes);
@@ -674,6 +677,9 @@
 					var name = $(".title-wrapper h1").text();
 					var episode = parseInt( $('input.episodes-seen').val());
 					var thumbnail = $(".youtube-preview").attr("href");
+					if (!thumbnail){
+						thumbnail = $(".poster-image").attr("href");
+					}
 					var episodesMax = parseInt($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data)
 					addAnime(id, name, thumbnail, episodesMax, episode);
 					$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
