@@ -355,11 +355,9 @@
 			}
 			
 			//Add anime to database
-			animes = GM_getValue('animes', {});
-			animes[id] = {name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset};
-			GM_setValue("animes", animes);
+			updateDatabase(id, {name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset})
 
-			//Don't check for released episodes if previous call failed
+			//Don't check for released episodes if there are none
 			if(data.data){
 				updateReleasedEpisodes(id);
 			}
@@ -381,13 +379,12 @@
 		 * @param {int} episodes the new value of episdes
 		 */
 		function updateEpisodes(id, episodes, allowDecrease=false) {
+			updateDatabase();
 			//Dont update anime progress if episodesSeen is higher than new value
-			animes = GM_getValue('animes', {});
 			if( !allowDecrease && animes[id].episodesSeen > episodes ){
 				return;
 			}
-			animes[id].episodesSeen = episodes;
-			GM_setValue("animes", animes);
+			updateDatabase(id, {episodesSeen: episodes});
 		}
 
 		/**
@@ -456,9 +453,7 @@
 				//Don't check again for an hour, dont wannt stress the API
 				var nextPredictedRelease = new Date();
 				nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
-				animes = GM_getValue('animes', {});
-				animes[animeID].predictedRelease = nextPredictedRelease;
-				GM_setValue("animes", animes);
+				updateDatabase(animeID, {predictedRelease: nextPredictedRelease});
 				return;
 			}
 
@@ -478,16 +473,12 @@
 				if(diffHours > 10){
 					//if current time is 10h over predicted releasedate then add 7 days
 					predictedRelease.setDate(predictedRelease.getDate() + 7);
-					animes = GM_getValue('animes', {});
-					animes[animeID].predictedRelease = predictedRelease;
-					animes[animeID].delayed = 2; // delayed = 2 means it's delayed over 10 hours
-					GM_setValue("animes", animes);
+					// delayed = 2 means it's delayed over 10 hours
+					updateDatabase(animeID, {predictedRelease: predictedRelease, delayed: 2});
 
 				} else if(diffHours > 0){
 					//if current time is over predicted releasedate then add delayed
-					animes = GM_getValue('animes', {});
-					animes[animeID].delayed = 1; // delayed = 1 means it's delayed 
-					GM_setValue("animes", animes);
+					updateDatabase(animeID, {delayed: 1});
 				}
 
 			} else { 
@@ -500,23 +491,19 @@
 					var dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
 					var offset = dataAsc.data[0].episode - 1;
 
-					animes = GM_getValue('animes', {});
-					animes[animeID].offset = offset;
 					if(!isNaN(animes[animeID].episodesMax)){
 						//If we previously set episodesMax, then update it with the new offset
-						animes[animeID].episodesMax = animes[animeID].episodesMax + offset;
+						updateDatabase(animeID, {offset: offset, episodesMax: animes[animeID].episodesMax + offset});
+					} else {
+						updateDatabase(animeID, {offset: offset});
 					}
-					GM_setValue("animes", animes);
 				}
 
 				//Predicted next release (7 days from last one)
 				var nextPredictedRelease = new Date(lastepisode.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
-				animes = GM_getValue('animes', {});
-				animes[animeID].predictedRelease = nextPredictedRelease;
-				animes[animeID].episodesReleased = lastEpisode;
-				GM_setValue("animes", animes);
+				updateDatabase(animeID, {predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode});
 			}
 		}
 
@@ -676,10 +663,7 @@
 				if(animes[id].episodesMax == '?'){
 					var episodesMax = parseInt($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
 					if(!isNaN(episodesMax)){
-						animes = GM_getValue('animes', {});
-						episodesMax += animes[id].offset;
-						animes[id].episodesMax = episodesMax;
-						GM_setValue("animes", animes);
+						updateDatabase(id, {episodesMax: episodesMax + animes[id].offset});
 					}
 				}
 
@@ -690,9 +674,7 @@
 					if (!thumbnail){
 						thumbnail = $(".poster-image").attr("href");
 					}
-					animes = GM_getValue('animes', {});
-					animes[id].thumbnail = thumbnail;
-					GM_setValue("animes", animes);
+					updateDatabase(id, {thumbnail: thumbnail});
 				}));
 				tester.src = animes[id].thumbnail;
 
