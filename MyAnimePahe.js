@@ -511,35 +511,39 @@
 		 */
 		function populateAnimeList(animeID, anime, container){
 
-			if(anime.episodesReleased != anime.episodesMax){
-				var predictedRelease = new Date(animes[animeID].predictedRelease);
-				var currentDate = new Date();
-				var diff = predictedRelease - currentDate;
-				var timeLeft = diff / 60000; // 1m
-				var timeLeftUnit = "min";
-
-				if(timeLeft > 60){
-					timeLeft = timeLeft / 60;
-					timeLeftUnit = "h";
-					
-					if(timeLeft > 24){
-						timeLeft = timeLeft / 24;
-						timeLeftUnit = "d";
+			var time = '';
+			if(anime.episodesReleased == 0){
+				//There's been no released episodes so we don't know when it will start airing
+				time = '?';
+			} else {
+				if(anime.episodesReleased != anime.episodesMax){
+					var predictedRelease = new Date(animes[animeID].predictedRelease);
+					var currentDate = new Date();
+					var diff = predictedRelease - currentDate;
+					var timeLeft = diff / 60000; // 1m
+					var timeLeftUnit = "min";
+	
+					if(timeLeft > 60){
+						timeLeft = timeLeft / 60;
+						timeLeftUnit = "h";
+						
+						if(timeLeft > 24){
+							timeLeft = timeLeft / 24;
+							timeLeftUnit = "d";
+						}
 					}
 				}
-			}
-
-			var time = ''
-			switch (animes[animeID].delayed) {
-				case 1:
-					time += '<i>soon</i>'
-					break;
-				case 0:
-				case 2:
-				default:
-					//if .delayed is set to 0, 2 or undefined then display time normally
-					time += Math.round(timeLeft) + " " + timeLeftUnit;
-					break;
+				switch (animes[animeID].delayed) {
+					case 1:
+						time += '<i>soon</i>'
+						break;
+					case 0:
+					case 2:
+					default:
+						//if .delayed is set to 0, 2 or undefined then display time normally
+						time += Math.round(timeLeft) + " " + timeLeftUnit;
+						break;
+				}
 			}
 
 			$(container).append(`
