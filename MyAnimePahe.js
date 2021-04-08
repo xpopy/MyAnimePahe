@@ -328,6 +328,16 @@
 		}
 
 		/**
+		 * Removes an anime from the database
+		 * @param {string} id The ID of the anime
+		 */
+		 function removeFromDatabase(id) {
+			animes = GM_getValue('animes', {});
+			delete animes[id];
+			GM_setValue("animes", animes);
+		}
+
+		/**
 		 * Adds an anime to the database
 		 * @param {string} id The ID of the anime
 		 * @param {string} name The name of the anime
@@ -359,16 +369,6 @@
 			if(data.data){
 				updateReleasedEpisodes(id);
 			}
-		}
-
-		/**
-		 * Removes an anime to the database
-		 * @param {string} id The ID of the anime
-		 */
-		function removeAnime(id) {
-			animes = GM_getValue('animes', {});
-			delete animes[id];
-			GM_setValue("animes", animes);
 		}
 
 		/**
@@ -694,7 +694,7 @@
 					$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
 					$('.tracker-episodes').removeClass('hidden');
 				} else {
-					removeAnime(id);
+					removeFromDatabase(id);
 					$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
 					$('.tracker-episodes').addClass('hidden');
 				}
