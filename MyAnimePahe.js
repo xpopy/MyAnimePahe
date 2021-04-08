@@ -299,6 +299,36 @@
 			}
 		`);
 
+
+		//Make sure to fetch the newset version of database
+		updateDatabase();
+
+		/**
+		 * Updates the database by fetching it, changing the properties and then saving it
+		 * @param {string} id The ID of the anime
+		 * @param {Object} args A dictionary of optional arguments with keys being the property in animes to update, and value being the value to set to the property
+		 */
+		 function updateDatabase(id = null, args = {}){
+			animes = GM_getValue('animes', {});
+
+			//Lets us call this function with no parameters to fetch an updated version of the database
+			if(!id){
+				return;
+			}
+			
+			//Add id to database if it doesn't exist already
+			if (! animes.hasOwnProperty(id)){
+				animes[id] = {}
+			}
+
+			//Loop through every key in optional arguments and save them to the provided id
+			for (const [key, value] of Object.entries(args)) {
+				animes[id][key] = value;
+			}
+
+			GM_setValue("animes", animes);
+		}
+
 		/**
 		 * Adds an anime to the database
 		 * @param {string} id The ID of the anime
