@@ -299,7 +299,7 @@
 
 
 		//Make sure to fetch the newset version of database
-		updateDatabase();
+		var animes = GM_getValue('animes', {});
 
 		/**
 		 * Updates the database by fetching it, changing the properties and then saving it
