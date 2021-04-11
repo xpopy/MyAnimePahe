@@ -500,7 +500,7 @@
 				var nextPredictedRelease = new Date(lastepisode.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
-				updateDatabase(animeID, {predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode});
+				updateDatabase(animeID, {predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0});
 			}
 		}
 
