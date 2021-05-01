@@ -294,6 +294,10 @@
 				top: 10px;
 				text-shadow: 0px 0px 3px black;
 				pointer-events: all;
+				color: #ffffffba
+			}
+			.new-episodes-color{
+				color: #00f3ff;
 			}
 		`);
 
@@ -576,7 +580,7 @@
 							</span>
 							/ ` + 
 							(anime.episodesReleased == anime.episodesMax ? "" : 
-							`<span class="cover-released-episodes tracker-tooltip">` + anime.episodesReleased + ` 
+							`<span class="cover-released-episodes tracker-tooltip ` + (anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : "" ) + `">` + anime.episodesReleased + ` 
 								<span class="tooltiptext">Released</span>
 							</span>
 							/ `) +
