@@ -402,7 +402,7 @@ TODO:
 		}
 
 		/**
-		 * Increases the episode count by 1
+		 * Updates the episodes seen count
 		 * @param {string} id The ID of the anime
 		 * @param {int} episodes the new value of episdes
 		 */
@@ -412,8 +412,49 @@ TODO:
 			if (!allowDecrease && animes[id].episodesSeen > episodes) {
 				return;
 			}
-			updateDatabase(id, { episodesSeen: episodes });
+			if (animes[id].episodesSeen > episodes) {
+				updateDatabase(id, { episodesSeen: episodes, restartPaginator: true });
+			} else {
+				updateDatabase(id, { episodesSeen: episodes });
+			}
 		}
+
+
+		/**
+		 * Fetches the next episode number using API
+		 * @param {string} id The ID of the anime
+		 * @param {int} episode current episode
+		 */
+		function getNextEpisode(id, episode, page = 1) {
+			for (; true; page++) {
+				const dataPage = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=' + page);
+				const index = dataPage.data.findIndex(item => item.episode > episode);
+
+				if (index > -1) {
+					return [dataPage.data[index].episode, page];
+				}
+
+				if (dataPage.last_page === page) {
+					return [episode + 1, page];
+				}
+			}
+		}
+
+		/**
+		 * Fetches the next episode number using API
+		 * @param {string} animeID The ID of the anime
+		 * @param {dict} anime anime object
+		 */
+		function updateNextEpisode(animeID, anime) {
+			if (anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
+				if (anime?.restartPaginator) {
+					anime.paginator = 1
+				}
+				const [nextEpisode, currentPage] = getNextEpisode(animeID, anime.episodesSeen, anime.paginator);
+				updateDatabase(animeID, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
+			}
+		}
+
 
 		/**
 		 * Detect progress in video and mark it as seen if progress passed a certain threshold
@@ -487,8 +528,8 @@ TODO:
 
 
 			//Get last epsiode
-			var lastepisode = data.data[0];
-			var lastEpisode = lastepisode.episode > lastepisode.episode2 ? lastepisode.episode : lastepisode.episode2;
+			const lastEpisodeData = data.data[0];
+			const lastEpisode = lastEpisodeData.episode > lastEpisodeData.episode2 ? lastEpisodeData.episode : lastEpisodeData.episode2;
 
 
 			//Check if there's a new episode
@@ -527,7 +568,7 @@ TODO:
 				}
 
 				//Predicted next release (7 days from last one)
-				var nextPredictedRelease = new Date(lastepisode.created_at);
+				var nextPredictedRelease = new Date(lastEpisodeData.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
 				updateDatabase(animeID, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
@@ -581,7 +622,7 @@ TODO:
 					<div class="anime-item-cover">
 						<img src="` + anime.thumbnail + `" alt=""></img>
 						<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
-						<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.episodesSeen + 1) + `">
+						<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.nextEpisode) + `">
 							<clippath>
 								<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
 									<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
@@ -656,13 +697,18 @@ TODO:
 			</section>`);
 
 			//Update the amount of released episodes for each anime (or use cached)
-			for (let animeID in animes) {
+			for (const animeID in animes) {
 				updateReleasedEpisodes(animeID);
+			}
+
+			//Get the next episode
+			for (const animeID in animes) {
+				updateNextEpisode(animeID, animes[animeID]);
 			}
 
 			//Loop through every subscribed anime and add them to frontpage
 			var container = $('.anime-list');
-			for (let animeID in animes) {
+			for (const animeID in animes) {
 				populateAnimeList(animeID, animes[animeID], container);
 			}
 		}
