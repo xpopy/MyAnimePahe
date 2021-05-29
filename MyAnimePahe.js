@@ -15,8 +15,34 @@
 // ==/UserScript==
 
 
-(function() {
-    'use strict';
+
+/*
+
+NOTES:
+/api?m=airing&l=12&page=1
+/api?m=new&id=
+/api?m=release&id=' + id + '&sort=episode_asc'
+/api?m=search&'
+/api?m=discord
+
+https://pahe.win/a/id/episode-number
+
+
+TODO:
+
+* Cant click on play next when next episode is 5.5
+
+
+* replace ajax call with async
+* Add a loading spin while loading all episodes
+* Load episodes on home page before updating their released episodes, and then update released episodes after
+* on hover on countdown show when last episode was released
+* if delayed maybe show up in different colour?
+*/
+
+
+(function () {
+	'use strict';
 
 	const _24hours = 86400000; //in ms, 1000*60*60*24
 
@@ -580,14 +606,10 @@
 							</span>
 							/ ` +
 				(anime.episodesReleased == anime.episodesMax ? "" :
-							(anime.episodesReleased == anime.episodesMax ? "" : 
-				(anime.episodesReleased == anime.episodesMax ? "" :
 					`<span class="cover-released-episodes tracker-tooltip ` + (anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : "") + `">` + anime.episodesReleased + ` 
 								<span class="tooltiptext">Released</span>
 							</span>
 							/ `) +
-				`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
-							`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
 				`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
 								<span class="tooltiptext">Total</span>
 							</span>
@@ -607,11 +629,7 @@
 			$.ajax({
 				url: url,
 				async: false,
-			  async: false,  
-				async: false,
 				success: function (data) {
-					result = data;
-				 result = data; 
 					result = data;
 				}
 			});
