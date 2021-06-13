@@ -730,19 +730,23 @@ TODO:
 			);
 
 			var id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
+			var episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
 
 			//Set proper values and classes depending on if the anime is added or not
 			if (id in animes) {
 				$('.track-button').addClass('remove-anime').text('Remove anime');
 				$('input.episodes-seen').val(animes[id].episodesSeen);
 
+				let offsetMax = episodesMax + animes[id].offset;
 				//If we previously set the total episodes to '?' (unknown) then check if it's been updated
-				if (animes[id].episodesMax == '?') {
-					var episodesMax = parseInt($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
+				if (animes[id].episodesMax == '?' || !Boolean(animes[id].episodesMax)) {
 					if (!isNaN(episodesMax)) {
 						updateDatabase(id, { episodesMax: episodesMax + animes[id].offset });
 					}
+				} else if (animes[id].episodesMax !== episodesMax + animes[id].offset) {
+					updateDatabase(id, { episodesMax: episodesMax + animes[id].offset });
 				}
+				console.log(episodesMax, episodesMax + animes[id].offset, animes[id].episodesMax, animes[id].offset)
 
 				//Check if previous thumbnail is failing, in that case fetch a new one
 				var tester = new Image();
@@ -769,7 +773,6 @@ TODO:
 					if (!thumbnail) {
 						thumbnail = $(".poster-image").attr("href");
 					}
-					var episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data)
 					addAnime(id, name, thumbnail, episodesMax, episode);
 					$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
 					$('.tracker-episodes').removeClass('hidden');
