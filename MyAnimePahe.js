@@ -30,9 +30,6 @@ https://pahe.win/a/id/episode-number
 
 TODO:
 
-* Cant click on play next when next episode is 5.5
-
-
 * replace ajax call with async
 * Add a loading spin while loading all episodes
 * Load episodes on home page before updating their released episodes, and then update released episodes after
