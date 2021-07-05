@@ -743,7 +743,6 @@ TODO:
 				} else if (animes[id].episodesMax !== episodesMax + animes[id].offset) {
 					updateDatabase(id, { episodesMax: episodesMax + animes[id].offset });
 				}
-				console.log(episodesMax, episodesMax + animes[id].offset, animes[id].episodesMax, animes[id].offset)
 
 				//Check if previous thumbnail is failing, in that case fetch a new one
 				var tester = new Image();
@@ -820,7 +819,7 @@ TODO:
 				var episodesMax = "?"
 			}
 
-			var episodeNumber = $('.theatre-info h1').text().split("-")[1].split(" ")[1];
+			var episodeNumber = $('.theatre-info h1').text().split(" - ")[1].split(" ")[0];
 			episodeNumber = episodeNumber * 1; // convert string to either int or float
 
 			//Set proper values and classes depending on if the anime is added or not
