@@ -464,26 +464,31 @@ TODO:
 				const key = $('iframe.embed-responsive-item').attr('src');
 				const stream = GM_getValue(key, undefined);
 
-				if (stream != undefined) {
-					const time = stream.currentTime;
-					const duration = stream.currentDuration;
-					const percentage = 0.85;
-					const timeReduction = 120;
-
-					//Only run if we got a duration update
-					if (duration > 0 && time > 0) {
-
-						//magical math
-						const reducedDuration = duration - timeReduction;
-						if (time / reducedDuration > percentage) {
-							$('.episode-seen').prop("checked", true);
-							if (id in animes) {
-								updateEpisodes(id, episode);
-							}
-							clearInterval(interval);	//stop interval
-						}
-					}
+				if (stream === undefined) {
+					return;
 				}
+
+				const time = stream.currentTime;
+				const duration = stream.currentDuration;
+				const percentage = 0.85;
+				const timeReduction = 120;
+
+				//Only run if we got a duration update
+				if (!(duration > 0 && time > 0)) {
+					return
+				}
+
+				//magical math
+				const reducedDuration = duration - timeReduction;
+				if (time / reducedDuration < percentage) {
+					return;
+				}
+				
+				$('.episode-seen').prop("checked", true);
+				if (id in animes) {
+					updateEpisodes(id, episode);
+				}
+				clearInterval(interval);	//stop interval
 			}, 3000); //Run every 3 seconds
 		}
 
