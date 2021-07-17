@@ -30,6 +30,42 @@ https://pahe.win/a/id/episode-number
 
 TODO:
 
+BREAK UP FUNCTIONS, will make it easier to read and understand
+
+LOAD ANIMES BEFORE UPDATING, makes it feel snappier
+
+RUN ALL UPDATING TOGETHER, instead of having 1-2 functions 
+
+GET LATEST RELEASES USING API, and check if theres been an update there first
+
+
+
+		function getDirectText(element) {
+			let text = element.innerText;
+			for (let child of element) {
+				console.log(child.innerText)
+				text = text.replace(child.innerText, "")
+			}
+			return text;
+		}
+
+		//Check if the anime is in episode list, by finding the text inside an a tag, excluding any spans
+		const latestReleasesList = $('.latest-release .episode-list').children();
+		for (let release of latestReleasesList) {
+			const title = getDirectText($(release).find('.episode-title a'));
+			if (animes[animeID].name === title) {
+				//Update database
+				//Find episode-number
+				const episodeNumber = getDirectText($(release).find('.episode-number'));
+				updateDatabase(animeID, { episodesReleased: parseFloat(episodeNumber) });
+				return;
+			}
+		}
+		
+		
+
+
+
 * replace ajax call with async
 * Add a loading spin while loading all episodes
 * Load episodes on home page before updating their released episodes, and then update released episodes after
@@ -483,7 +519,7 @@ TODO:
 				if (time / reducedDuration < percentage) {
 					return;
 				}
-				
+
 				$('.episode-seen').prop("checked", true);
 				if (id in animes) {
 					updateEpisodes(id, episode);
