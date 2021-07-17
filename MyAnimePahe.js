@@ -48,7 +48,7 @@ TODO:
 	for (let index = 0; index < data.length; index++) {
 		const key = data[index];
 		if (key.split('/')[2] == "kwik.cx") {
-			var stream = GM_getValue(key);
+			const stream = GM_getValue(key);
 			if (new Date() - new Date(stream.date) > _24hours) {
 				GM_deleteValue(key);
 			}
@@ -461,20 +461,20 @@ TODO:
 			//Get currentTime and duration of video every x seconds
 			//Then check currentTime against duration to then check the .episode-seen checkbox
 			var interval = setInterval(function () {
-				var key = $('iframe.embed-responsive-item').attr('src');
-				var stream = GM_getValue(key, undefined);
+				const key = $('iframe.embed-responsive-item').attr('src');
+				const stream = GM_getValue(key, undefined);
 
 				if (stream != undefined) {
-					var time = stream.currentTime;
-					var duration = stream.currentDuration;
-					var percentage = 0.85;
-					var timeReduction = 120;
+					const time = stream.currentTime;
+					const duration = stream.currentDuration;
+					const percentage = 0.85;
+					const timeReduction = 120;
 
 					//Only run if we got a duration update
 					if (duration > 0 && time > 0) {
 
 						//magical math
-						var reducedDuration = duration - timeReduction;
+						const reducedDuration = duration - timeReduction;
 						if (time / reducedDuration > percentage) {
 							$('.episode-seen').prop("checked", true);
 							if (id in animes) {
@@ -492,15 +492,14 @@ TODO:
 		 * @param {string} animeID The ID of the anime
 		 */
 		function updateReleasedEpisodes(animeID) {
-
 			//Don't update if released episodes == max episodes
 			if (animes[animeID].episodesMax != '?' && animes[animeID].episodesReleased >= animes[animeID].episodesMax) {
 				return;
 			}
 
 			//Dont update if current date is lower than predicted next release time (minus 1 hours for margin)
-			var nextUpdate = new Date(animes[animeID].predictedRelease);
-			var currentDate = new Date();
+			const nextUpdate = new Date(animes[animeID].predictedRelease);
+			const currentDate = new Date();
 			currentDate.setHours(currentDate.getHours() + 1);
 			if (!isNaN(nextUpdate.getTime()) && currentDate < nextUpdate) {
 				//Don't skip if the episode is delayed, we will want to check more just to be sure
@@ -515,7 +514,7 @@ TODO:
 			//there's a chance there is no episodes out yet, in those cases 
 			if (!data.data) {
 				//Don't check again for an hour, dont wannt stress the API
-				var nextPredictedRelease = new Date();
+				const nextPredictedRelease = new Date();
 				nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
 				updateDatabase(animeID, { predictedRelease: nextPredictedRelease });
 				return;
@@ -530,9 +529,9 @@ TODO:
 			//Check if there's a new episode
 			if (animes[animeID].episodesReleased == lastEpisode) {
 				//There's been no new episodes
-				var predictedRelease = new Date(animes[animeID].predictedRelease);
-				var diff = currentDate - predictedRelease;
-				var diffHours = diff / 3600000;// 1000*60*60
+				const predictedRelease = new Date(animes[animeID].predictedRelease);
+				const diff = currentDate - predictedRelease;
+				const diffHours = diff / 3600000;// 1000*60*60
 
 				if (diffHours > 10) {
 					//if current time is 10h over predicted releasedate then add 7 days
@@ -551,8 +550,8 @@ TODO:
 				if (animes[animeID].episodesReleased == 0 && lastEpisode > 1) {
 
 					//Check for first episode
-					var dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
-					var offset = dataAsc.data[0].episode - 1;
+					const dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
+					const offset = dataAsc.data[0].episode - 1;
 
 					if (!isNaN(animes[animeID].episodesMax)) {
 						//If we previously set episodesMax, then update it with the new offset
@@ -563,7 +562,7 @@ TODO:
 				}
 
 				//Predicted next release (7 days from last one)
-				var nextPredictedRelease = new Date(lastEpisodeData.created_at);
+				const nextPredictedRelease = new Date(lastEpisodeData.created_at);
 				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
 				updateDatabase(animeID, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
@@ -583,9 +582,9 @@ TODO:
 				time = '?';
 			} else {
 				if (anime.episodesReleased != anime.episodesMax) {
-					var predictedRelease = new Date(animes[animeID].predictedRelease);
-					var currentDate = new Date();
-					var diff = predictedRelease - currentDate;
+					const predictedRelease = new Date(animes[animeID].predictedRelease);
+					const currentDate = new Date();
+					const diff = predictedRelease - currentDate;
 					var timeLeft = diff / 60000; // 1m
 					var timeLeftUnit = "min";
 
@@ -702,7 +701,7 @@ TODO:
 			}
 
 			//Loop through every subscribed anime and add them to frontpage
-			var container = $('.anime-list');
+			const container = $('.anime-list');
 			for (const animeID in animes) {
 				populateAnimeList(animeID, animes[animeID], container);
 			}
@@ -724,15 +723,14 @@ TODO:
 				</div>`
 			);
 
-			var id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
-			var episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
+			const id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
+			const episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
 
 			//Set proper values and classes depending on if the anime is added or not
 			if (id in animes) {
 				$('.track-button').addClass('remove-anime').text('Remove anime');
 				$('input.episodes-seen').val(animes[id].episodesSeen);
 
-				let offsetMax = episodesMax + animes[id].offset;
 				//If we previously set the total episodes to '?' (unknown) then check if it's been updated
 				if (animes[id].episodesMax == '?' || !Boolean(animes[id].episodesMax)) {
 					if (!isNaN(episodesMax)) {
@@ -761,9 +759,9 @@ TODO:
 			//On click either add or remove anime from dict
 			$('.track-button').click(function () {
 				if ($(this).hasClass("add-anime")) {
-					var name = $(".title-wrapper h1").text();
-					var episode = parseFloat($('input.episodes-seen').val());
-					var thumbnail = $(".youtube-preview").attr("href");
+					const name = $(".title-wrapper h1").text();
+					const episode = parseFloat($('input.episodes-seen').val());
+					const thumbnail = $(".youtube-preview").attr("href");
 					if (!thumbnail) {
 						thumbnail = $(".poster-image").attr("href");
 					}
@@ -789,7 +787,7 @@ TODO:
 
 			//On input update save episode count
 			$(".episodes-seen").on("input", function () {
-				var episodeNumber = parseFloat($('input.episodes-seen').val());
+				const episodeNumber = parseFloat($('input.episodes-seen').val());
 				updateEpisodes(id, episodeNumber, true);
 			});
 		}
@@ -810,7 +808,7 @@ TODO:
 			);
 
 			var data = syncAjax('https://animepahe.com/anime/' + idHash);
-			var id = data.match(/(?<=anime-)\d+/)[0];
+			const id = data.match(/(?<=anime-)\d+/)[0];
 			try {
 				var episodesMax = data.match(/(?<=<\/strong> )\d+(?=<)/)[0];
 			} catch (TypeError) {
@@ -833,9 +831,9 @@ TODO:
 
 			//On click add anime to list
 			$('.track-button').click(function () {
-				var name = $(".theatre-info h1 a").text();
-				var thumbnailSmall = $(".anime-poster").attr("src");
-				var thumbnail = thumbnailSmall.replace('.th.', '.');
+				const name = $(".theatre-info h1 a").text();
+				const thumbnailSmall = $(".anime-poster").attr("src");
+				const thumbnail = thumbnailSmall.replace('.th.', '.');
 				addAnime(id, name, thumbnail, episodesMax, episodeNumber);
 				$(this).addClass("hidden");
 				$('.tracker-episodes').removeClass('hidden');
@@ -853,9 +851,9 @@ TODO:
 		}
 
 		//Get url location
-		var urlSplits = window.location.href.split("/");
-		var subPage = urlSplits[3];
-		var idHash = urlSplits[4];
+		const urlSplits = window.location.href.split("/");
+		const subPage = urlSplits[3];
+		const idHash = urlSplits[4];
 
 		//Run different code depending on which subPage we're in
 		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
@@ -873,7 +871,7 @@ TODO:
 	 */
 	function kwik() {
 		var video = undefined;
-		var url = window.location.href;
+		const url = window.location.href;
 
 		setInterval(function () {
 			if (video) {
