@@ -412,8 +412,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Updates the episodes seen count
-	 * @param {string} id The ID of the anime
-	 * @param {int} episodes the new value of episdes
 	 */
 	function updateEpisodes(anime, episodes, allowDecrease = false) {
 		//Dont update anime progress if episodesSeen is higher than new value
@@ -443,8 +441,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Fetches the next episode number using API
-	 * @param {string} id The ID of the anime
-	 * @param {int} episode current episode
 	 */
 	function getNextEpisode(id, episode, page = 1) {
 		for (; true; page++) {
@@ -464,7 +460,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Updates the amount of released episodes for the given anime
-	 * @param {string} animeID The ID of the anime
 	 */
 	function updateReleasedEpisodes(anime) {
 		//Don't update if released episodes == max episodes
@@ -545,8 +540,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Populates animelist by inserting the provided anime
-	 * @param {string} animeID The ID of the anime
-	 * @param {dict} anime The anime as a dict: {name, thumbnail, episodesSeen}
 	 */
 	function populateAnimeList(anime, container) {
 		var time = '';
@@ -631,7 +624,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Detect progress in video and mark it as seen if progress passed a certain threshold
-	 * @param {string} id The ID of the anime
 	 */
 	function checkProgress(animes, id, episode) {
 		//Get currentTime and duration of video every x seconds
@@ -690,7 +682,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Inject CSS into head
-	 * @param {string} styleString A string of CSS styles to be added
 	 */
 	function injectCSS() {
 		const styleString = `
