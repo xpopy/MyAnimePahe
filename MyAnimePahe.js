@@ -171,18 +171,18 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 		//Update the amount of released episodes for each anime (or use cached)
 		for (const animeID in animes) {
-			updateReleasedEpisodes(animes[animeID], animeID);
+			updateReleasedEpisodes(animes[animeID]);
 		}
 
 		//Get the next episode
 		for (const animeID in animes) {
-			updateNextEpisode(animes[animeID], animeID);
+			updateNextEpisode(animes[animeID]);
 		}
 
 		//Loop through every subscribed anime and add them to frontpage
 		const container = $('.anime-list');
 		for (const animeID in animes) {
-			populateAnimeList(animes[animeID], animeID, container);
+			populateAnimeList(animes[animeID], container);
 		}
 	}
 
@@ -215,10 +215,10 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			//If we previously set the total episodes to '?' (unknown) then check if it's been updated
 			if (anime.episodesMax == '?' || !Boolean(anime.episodesMax)) {
 				if (!isNaN(episodesMax)) {
-					updateDatabase(anime, id, { episodesMax: episodesMax + anime.offset });
+					updateDatabase(anime, { episodesMax: episodesMax + anime.offset });
 				}
 			} else if (anime.episodesMax !== episodesMax + anime.offset) {
-				updateDatabase(anime, id, { episodesMax: episodesMax + anime.offset });
+				updateDatabase(anime, { episodesMax: episodesMax + anime.offset });
 			}
 
 			//Check if previous thumbnail is failing, in that case fetch a new one
@@ -228,7 +228,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				if (!thumbnail) {
 					thumbnail = $(".poster-image").attr("href");
 				}
-				updateDatabase(anime, id, { thumbnail: thumbnail });
+				updateDatabase(anime, { thumbnail: thumbnail });
 			}));
 			tester.src = anime.thumbnail;
 
@@ -250,7 +250,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
 				$('.tracker-episodes').removeClass('hidden');
 			} else {
-				removeFromDatabase(animes, id);
+				removeFromDatabase(animes, animes[id]);
 				$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
 				$('.tracker-episodes').addClass('hidden');
 			}
@@ -265,7 +265,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 					episodeNumber = anime.offset + 1;
 				}
 				$('input.episodes-seen').val(episodeNumber);
-				updateEpisodes(anime, id, episodeNumber, true);
+				updateEpisodes(anime, episodeNumber, true);
 			}
 		});
 
@@ -274,7 +274,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			if (id in animes) {
 				const anime = animes[id];
 				const episodeNumber = parseFloat($('input.episodes-seen').val());
-				updateEpisodes(anime, id, episodeNumber, true);
+				updateEpisodes(anime, episodeNumber, true);
 			}
 		});
 	}
@@ -331,7 +331,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		//Detect changes to episode-seen
 		$('.episode-seen').change(function () {
 			if ($(this).is(":checked")) {
-				updateEpisodes(animes[id], id, episodeNumber);
+				updateEpisodes(animes[id], episodeNumber);
 			}
 		});
 
@@ -345,19 +345,14 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * @param {string} id The ID of the anime
 	 * @param {Object} args A dictionary of optional arguments with keys being the property in animes to update, and value being the value to set to the property
 	 */
-	function updateDatabase(anime, id, args = {}) {
-		//Add id to database if it doesn't already exist 
-		if (!anime) {
-			anime = { id: id };
-		}
-
+	function updateDatabase(anime, args = {}) {
 		//Loop through every key in optional arguments and save them to the provided id
 		for (const [key, value] of Object.entries(args)) {
 			anime[key] = value;
 		}
 
 		const animes = GM_getValue('animes', {});
-		animes[id] = anime;
+		animes[anime.id] = anime;
 		GM_setValue("animes", animes);
 	}
 
@@ -366,8 +361,9 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * Removes an anime from the database
 	 * @param {string} id The ID of the anime
 	 */
-	function removeFromDatabase(animes, id) {
+	function removeFromDatabase(animes, anime) {
 		animes = GM_getValue('animes', {});
+		const id = anime.id;
 		if (id in animes) {
 			delete animes[id];
 			GM_setValue("animes", animes);
@@ -405,7 +401,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		animes[id] = anime;
 
 		//Add anime to database
-		updateDatabase(anime, id, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset })
+		updateDatabase(anime, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset })
 
 		//Don't check for released episodes if there are none
 		if (data.data) {
@@ -419,30 +415,28 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * @param {string} id The ID of the anime
 	 * @param {int} episodes the new value of episdes
 	 */
-	function updateEpisodes(anime, id, episodes, allowDecrease = false) {
+	function updateEpisodes(anime, episodes, allowDecrease = false) {
 		//Dont update anime progress if episodesSeen is higher than new value
 		if (!allowDecrease && anime.episodesSeen > episodes) {
 			return;
 		}
 		if (anime.episodesSeen > episodes) {
-			updateDatabase(anime, id, { episodesSeen: episodes, restartPaginator: true });
+			updateDatabase(anime, { episodesSeen: episodes, restartPaginator: true });
 		} else {
-			updateDatabase(anime, id, { episodesSeen: episodes });
+			updateDatabase(anime, { episodesSeen: episodes });
 		}
 	}
 
 	/**
 	 * Fetches the next episode number using API
-	 * @param {string} animeID The ID of the anime
-	 * @param {dict} anime anime object
 	 */
-	function updateNextEpisode(anime, animeID) {
+	function updateNextEpisode(anime) {
 		if (anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
 			if (anime?.restartPaginator) {
 				anime.paginator = 1
 			}
-			const [nextEpisode, currentPage] = getNextEpisode(animeID, anime.episodesSeen, anime.paginator);
-			updateDatabase(anime, animeID, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
+			const [nextEpisode, currentPage] = getNextEpisode(anime.animeID, anime.episodesSeen, anime.paginator);
+			updateDatabase(anime, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
 		}
 	}
 
@@ -472,7 +466,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * Updates the amount of released episodes for the given anime
 	 * @param {string} animeID The ID of the anime
 	 */
-	function updateReleasedEpisodes(anime, animeID) {
+	function updateReleasedEpisodes(anime) {
 		//Don't update if released episodes == max episodes
 		if (anime.episodesMax != '?' && anime.episodesReleased >= anime.episodesMax) {
 			return;
@@ -490,14 +484,14 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		}
 
 		//Get latest episode
-		var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
+		var data = syncAjax('/api?m=release&id=' + anime.id + '&sort=episode_desc&page=0');
 
 		//there's a chance there is no episodes out yet, in those cases 
 		if (!data.data) {
 			//Don't check again for an hour, dont wannt stress the API
 			const nextPredictedRelease = new Date();
 			nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
-			updateDatabase(anime, animeID, { predictedRelease: nextPredictedRelease });
+			updateDatabase(anime, { predictedRelease: nextPredictedRelease });
 			return;
 		}
 
@@ -516,11 +510,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				//if current time is 10h over predicted releasedate then add 7 days
 				predictedRelease.setDate(predictedRelease.getDate() + 7);
 				// delayed = 2 means it's delayed over 10 hours
-				updateDatabase(anime, animeID, { predictedRelease: predictedRelease, delayed: 2 });
+				updateDatabase(anime, { predictedRelease: predictedRelease, delayed: 2 });
 
 			} else if (diffHours > 0) {
 				//if current time is over predicted releasedate then add delayed
-				updateDatabase(anime, animeID, { delayed: 1 });
+				updateDatabase(anime, { delayed: 1 });
 			}
 
 		} else {
@@ -529,14 +523,14 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			if (anime.episodesReleased == 0 && lastEpisode > 1) {
 
 				//Check for first episode
-				const dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
+				const dataAsc = syncAjax('/api?m=release&id=' + anime.id + '&sort=episode_asc&page=0');
 				const offset = dataAsc.data[0].episode - 1;
 
 				if (!isNaN(anime.episodesMax)) {
 					//If we previously set episodesMax, then update it with the new offset
-					updateDatabase(anime, animeID, { offset: offset, episodesMax: anime.episodesMax + offset });
+					updateDatabase(anime, { offset: offset, episodesMax: anime.episodesMax + offset });
 				} else {
-					updateDatabase(anime, animeID, { offset: offset });
+					updateDatabase(anime, { offset: offset });
 				}
 			}
 
@@ -544,7 +538,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			const nextPredictedRelease = new Date(lastEpisodeData.created_at);
 			nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
 
-			updateDatabase(anime, animeID, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
+			updateDatabase(anime, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
 		}
 	}
 
@@ -554,7 +548,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * @param {string} animeID The ID of the anime
 	 * @param {dict} anime The anime as a dict: {name, thumbnail, episodesSeen}
 	 */
-	function populateAnimeList(anime, animeID, container) {
+	function populateAnimeList(anime, container) {
 		var time = '';
 		if (anime.episodesReleased == 0) {
 			//There's been no released episodes so we don't know when it will start airing
@@ -594,8 +588,8 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			<div class="anime-item">
 				<div class="anime-item-cover">
 					<img src="` + anime.thumbnail + `" alt=""></img>
-					<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
-					<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.nextEpisode) + `">
+					<a href="https://pahe.win/a/` + anime.id + `" class="anime-cover-link"></a>
+					<a class="play-next" href="https://pahe.win/a/` + anime.id + `/` + (anime.nextEpisode) + `">
 						<clippath>
 							<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
 								<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
@@ -628,7 +622,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 							<span class="tooltiptext">Total</span>
 						</span>
 					</div>
-					<a href="https://pahe.win/a/` + animeID + `" class="anime-link">` + anime.name + `</a>
+					<a href="https://pahe.win/a/` + anime.id + `" class="anime-link">` + anime.name + `</a>
 				</div>
 			</div>
 		`);
@@ -671,7 +665,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			}
 
 			$('.episode-seen').prop("checked", true);
-			updateEpisodes(animes[id], id, episode);
+			updateEpisodes(animes[id], episode);
 
 			clearInterval(interval);	//stop interval
 		}, 3000); //Run every 3 seconds
@@ -680,7 +674,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Send an http request to the anime/id and returnt he data
-	 * @param {string} id The hash ID of the anime 
 	 */
 	function syncAjax(url) {
 		var result = "";
