@@ -77,19 +77,8 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 (function () {
 	'use strict';
 
-	const _24hours = 86400000; //in ms, 1000*60*60*24
-
 	//Make sure to clear data (from streams) if they're not in use
-	var data = GM_listValues();
-	for (let index = 0; index < data.length; index++) {
-		const key = data[index];
-		if (key.split('/')[2] == "kwik.cx") {
-			const stream = GM_getValue(key);
-			if (new Date() - new Date(stream.date) > _24hours) {
-				GM_deleteValue(key);
-			}
-		}
-	}
+	clearStreams();
 
 	if (location.hostname == "animepahe.com") {
 		//Run code on animepahe
@@ -99,22 +88,619 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		kwik();
 	}
 
+
+	/**
+	 * Clears all streams
+	 */
+	function clearStreams() {
+		const data = GM_listValues();
+		const currentDate = new Date();
+		for (let index = 0; index < data.length; index++) {
+			const key = data[index];
+			if (key.split('/')[2] == "kwik.cx") {
+				const stream = GM_getValue(key);
+				if (currentDate - new Date(stream.date) > 86400000) { //24 hours = 1000*60*60*24 ms
+					GM_deleteValue(key);
+				}
+			}
+		}
+	}
+
+
 	/**
 	 * Main script
 	 * Only runs on animepahe.com domains
 	 */
 	function animepahe() {
-		/**
-		 * Inject CSS into head
-		 * @param {string} styleString A string of CSS styles to be added
-		 */
-		function addStyle(styleString) {
-			const style = document.createElement('style');
-			style.textContent = styleString;
-			document.head.append(style);
+		const animes = GM_getValue('animes', {});
+
+		//Inject css
+		injectCSS();
+
+		//Run different code depending on which subPage we're in
+		const urlSplits = window.location.href.split("/");
+		const subPage = urlSplits[3];
+		const idHash = urlSplits[4];
+
+		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
+			homePage(animes);
+		} else if (subPage == "anime") {
+			animePage(animes)
+		} else if (subPage == "play") {
+			playerPage(animes, idHash)
+		}
+	}
+
+	/**
+	 * Gets the currentTime and duration from a video and saves it to database for the other script to read
+	 * Only runs on kwik.cx domains
+	 */
+	function kwik() {
+		var video = undefined;
+		const url = window.location.href;
+		const currentDate = new Date();
+
+		setInterval(function () {
+			if (video) {
+				GM_setValue(url, { currentTime: video.currentTime, currentDuration: video.duration, date: currentDate });
+			} else {
+				video = $("video")[0];
+			}
+		}, 3000);
+	}
+
+
+	/**
+	 * All the code for the home page
+	 **/
+	function homePage(animes) {
+		//Insert container for currently watching animes
+		$('.main-header').after(`
+		<section style="" class="animelist-main">
+			<article>
+				<div class="content-wrapper">
+					<div class="tracked-animes">
+						<h2>Your Animes</h2>
+						<div class="anime-list-wrapper">
+							<div class="anime-list row"></div>
+						</div>
+					</div>
+				</div>
+			</article>
+		</section>`);
+
+		//Update the amount of released episodes for each anime (or use cached)
+		for (const animeID in animes) {
+			updateReleasedEpisodes(animes[animeID], animeID);
 		}
 
-		addStyle(`
+		//Get the next episode
+		for (const animeID in animes) {
+			updateNextEpisode(animes[animeID], animeID);
+		}
+
+		//Loop through every subscribed anime and add them to frontpage
+		const container = $('.anime-list');
+		for (const animeID in animes) {
+			populateAnimeList(animes[animeID], animeID, container);
+		}
+	}
+
+
+	/**
+	 * All the code for the anime info page
+	 **/
+	function animePage(animes) {
+		//Insert html code
+		$('.anime-content').append(`
+			<div id="animetracker">
+				<span class="track-button"></span>
+				<div class="tracker-episodes">
+					Episodes: 
+					<input class="episodes-seen" type="number" value="0">
+					<input value="+" class="increment-episodes" type="button">
+				</div> 
+			</div>`
+		);
+
+		const id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
+		const episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
+
+		//Set proper values and classes depending on if the anime is added or not
+		if (id in animes) {
+			const anime = animes[id];
+			$('.track-button').addClass('remove-anime').text('Remove anime');
+			$('input.episodes-seen').val(anime.episodesSeen);
+
+			//If we previously set the total episodes to '?' (unknown) then check if it's been updated
+			if (anime.episodesMax == '?' || !Boolean(anime.episodesMax)) {
+				if (!isNaN(episodesMax)) {
+					updateDatabase(anime, id, { episodesMax: episodesMax + anime.offset });
+				}
+			} else if (anime.episodesMax !== episodesMax + anime.offset) {
+				updateDatabase(anime, id, { episodesMax: episodesMax + anime.offset });
+			}
+
+			//Check if previous thumbnail is failing, in that case fetch a new one
+			var tester = new Image();
+			tester.addEventListener('error', (function () {
+				var thumbnail = $(".youtube-preview").attr("href");
+				if (!thumbnail) {
+					thumbnail = $(".poster-image").attr("href");
+				}
+				updateDatabase(anime, id, { thumbnail: thumbnail });
+			}));
+			tester.src = anime.thumbnail;
+
+		} else {
+			$('.track-button').addClass('add-anime').text('Track anime');
+			$('.tracker-episodes').addClass('hidden');
+		}
+
+		//On click either add or remove anime from dict
+		$('.track-button').click(function () {
+			if ($(this).hasClass("add-anime")) {
+				const name = $(".title-wrapper h1").text();
+				const episode = parseFloat($('input.episodes-seen').val());
+				const thumbnail = $(".youtube-preview").attr("href");
+				if (!thumbnail) {
+					thumbnail = $(".poster-image").attr("href");
+				}
+				addAnime(animes, id, name, thumbnail, episodesMax, episode);
+				$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
+				$('.tracker-episodes').removeClass('hidden');
+			} else {
+				removeFromDatabase(animes, id);
+				$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
+				$('.tracker-episodes').addClass('hidden');
+			}
+		});
+
+		//On click increment episodes
+		$('.increment-episodes').click(function () {
+			if (id in animes) {
+				const anime = animes[id];
+				var episodeNumber = parseFloat($('input.episodes-seen').val()) + 1;
+				if (anime.offset > 0 && episodeNumber > 0 && episodeNumber < anime.offset + 1) {
+					episodeNumber = anime.offset + 1;
+				}
+				$('input.episodes-seen').val(episodeNumber);
+				updateEpisodes(anime, id, episodeNumber, true);
+			}
+		});
+
+		//On input update save episode count
+		$(".episodes-seen").on("input", function () {
+			if (id in animes) {
+				const anime = animes[id];
+				const episodeNumber = parseFloat($('input.episodes-seen').val());
+				updateEpisodes(anime, id, episodeNumber, true);
+			}
+		});
+	}
+
+
+	/**
+	 * All the code for the player page
+	 **/
+	function playerPage(animes, idHash) {
+		//Create track/remove buttons
+		$('.theatre-info').append(`
+			<div id="animetracker">
+				<div class="track-button add-anime hidden">Track anime</div>
+				<div class="tracker-episodes hidden">
+					Mark as seen 
+					<input class="episode-seen" type="checkbox">
+				</div> 
+			</div>`
+		);
+
+		const data = syncAjax('https://animepahe.com/anime/' + idHash);
+		const id = data.match(/(?<=anime-)\d+/)[0];
+		var episodesMax;
+		try {
+			episodesMax = data.match(/(?<=<\/strong> )\d+(?=<)/)[0];
+		} catch (TypeError) {
+			episodesMax = "?"
+		}
+
+		const episodeString = $('.theatre-info h1').text().split(" - ")[1].split(" ")[0];
+		const episodeNumber = episodeString * 1; // convert string to either int or float
+
+		//Set proper values and classes depending on if the anime is added or not
+		if (id in animes) {
+			$('.tracker-episodes').removeClass('hidden');
+			if (animes[id].episodesSeen >= episodeNumber) {
+				$('.episode-seen').prop("checked", true);
+			}
+		} else {
+			$('.track-button').removeClass('hidden');
+		}
+
+
+		//On click add anime to list
+		$('.track-button').click(function () {
+			const name = $(".theatre-info h1 a").text();
+			const thumbnailSmall = $(".anime-poster").attr("src");
+			const thumbnail = thumbnailSmall.replace('.th.', '.');
+			addAnime(animes, id, name, thumbnail, episodesMax, episodeNumber);
+			$(this).addClass("hidden");
+			$('.tracker-episodes').removeClass('hidden');
+		});
+
+		//Detect changes to episode-seen
+		$('.episode-seen').change(function () {
+			if ($(this).is(":checked")) {
+				updateEpisodes(animes[id], id, episodeNumber);
+			}
+		});
+
+		//Detect progress in video and mark it as seen if progress passed a certain threshold
+		checkProgress(animes, id, episodeNumber);
+	}
+
+
+	/**
+	 * Updates the database by fetching it, changing the properties and then saving it
+	 * @param {string} id The ID of the anime
+	 * @param {Object} args A dictionary of optional arguments with keys being the property in animes to update, and value being the value to set to the property
+	 */
+	function updateDatabase(anime, id, args = {}) {
+		//Add id to database if it doesn't already exist 
+		if (!anime) {
+			anime = { id: id };
+		}
+
+		//Loop through every key in optional arguments and save them to the provided id
+		for (const [key, value] of Object.entries(args)) {
+			anime[key] = value;
+		}
+
+		const animes = GM_getValue('animes', {});
+		animes[id] = anime;
+		GM_setValue("animes", animes);
+	}
+
+
+	/**
+	 * Removes an anime from the database
+	 * @param {string} id The ID of the anime
+	 */
+	function removeFromDatabase(animes, id) {
+		animes = GM_getValue('animes', {});
+		if (id in animes) {
+			delete animes[id];
+			GM_setValue("animes", animes);
+		}
+	}
+
+
+	/**
+	 * Adds an anime to the database
+	 * @param {string} id The ID of the anime
+	 * @param {string} name The name of the anime
+	 * @param {string} thumbnail thumnnail of the anime
+	 * @param {any} episodesMax 
+	 */
+	function addAnime(animes, id, name, thumbnail, episodesMax = '?', episode = 0) {
+		//Get released episodes sorted by ascending to get the first episode to get the offset
+		const data = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=0');
+		var offset = 0;
+
+		//If there's no episodes released, data.data will be undefined, so only access it if it exists
+		if (data.data) {
+			offset = data.data[0].episode - 1;
+		}
+
+		//episodesMax could possibly be a string or not a number, in those cases set it to '?'
+		if (isNaN(episodesMax)) {
+			episodesMax = '?'
+		} else {
+			episodesMax = episodesMax * 1 //convert from string to either int or float
+			episodesMax += offset;
+		}
+
+		//Add anime to database
+		const anime = { id: id };
+		animes[id] = anime;
+
+		//Add anime to database
+		updateDatabase(anime, id, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset })
+
+		//Don't check for released episodes if there are none
+		if (data.data) {
+			updateReleasedEpisodes(anime, id);
+		}
+	}
+
+
+	/**
+	 * Updates the episodes seen count
+	 * @param {string} id The ID of the anime
+	 * @param {int} episodes the new value of episdes
+	 */
+	function updateEpisodes(anime, id, episodes, allowDecrease = false) {
+		//Dont update anime progress if episodesSeen is higher than new value
+		if (!allowDecrease && anime.episodesSeen > episodes) {
+			return;
+		}
+		if (anime.episodesSeen > episodes) {
+			updateDatabase(anime, id, { episodesSeen: episodes, restartPaginator: true });
+		} else {
+			updateDatabase(anime, id, { episodesSeen: episodes });
+		}
+	}
+
+	/**
+	 * Fetches the next episode number using API
+	 * @param {string} animeID The ID of the anime
+	 * @param {dict} anime anime object
+	 */
+	function updateNextEpisode(anime, animeID) {
+		if (anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
+			if (anime?.restartPaginator) {
+				anime.paginator = 1
+			}
+			const [nextEpisode, currentPage] = getNextEpisode(animeID, anime.episodesSeen, anime.paginator);
+			updateDatabase(anime, animeID, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
+		}
+	}
+
+
+	/**
+	 * Fetches the next episode number using API
+	 * @param {string} id The ID of the anime
+	 * @param {int} episode current episode
+	 */
+	function getNextEpisode(id, episode, page = 1) {
+		for (; true; page++) {
+			const dataPage = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=' + page);
+			const index = dataPage.data.findIndex(item => item.episode > episode);
+
+			if (index > -1) {
+				return [dataPage.data[index].episode, page];
+			}
+
+			if (dataPage.last_page === page) {
+				return [episode + 1, page];
+			}
+		}
+	}
+
+
+	/**
+	 * Updates the amount of released episodes for the given anime
+	 * @param {string} animeID The ID of the anime
+	 */
+	function updateReleasedEpisodes(anime, animeID) {
+		//Don't update if released episodes == max episodes
+		if (anime.episodesMax != '?' && anime.episodesReleased >= anime.episodesMax) {
+			return;
+		}
+
+		//Dont update if current date is lower than predicted next release time (minus 1 hours for margin)
+		const nextUpdate = new Date(anime.predictedRelease);
+		const currentDate = new Date();
+		currentDate.setHours(currentDate.getHours() + 1);
+		if (!isNaN(nextUpdate.getTime()) && currentDate < nextUpdate) {
+			//Don't skip if the episode is delayed, we will want to check more just to be sure
+			if (!anime.delayed) {
+				return;
+			}
+		}
+
+		//Get latest episode
+		var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
+
+		//there's a chance there is no episodes out yet, in those cases 
+		if (!data.data) {
+			//Don't check again for an hour, dont wannt stress the API
+			const nextPredictedRelease = new Date();
+			nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
+			updateDatabase(anime, animeID, { predictedRelease: nextPredictedRelease });
+			return;
+		}
+
+		//Get last epsiode
+		const lastEpisodeData = data.data[0];
+		const lastEpisode = lastEpisodeData.episode > lastEpisodeData.episode2 ? lastEpisodeData.episode : lastEpisodeData.episode2;
+
+		//Check if there's a new episode
+		if (anime.episodesReleased == lastEpisode) {
+			//There's been no new episodes
+			const predictedRelease = new Date(anime.predictedRelease);
+			const diff = currentDate - predictedRelease;
+			const diffHours = diff / 3600000;// 1000*60*60
+
+			if (diffHours > 10) {
+				//if current time is 10h over predicted releasedate then add 7 days
+				predictedRelease.setDate(predictedRelease.getDate() + 7);
+				// delayed = 2 means it's delayed over 10 hours
+				updateDatabase(anime, animeID, { predictedRelease: predictedRelease, delayed: 2 });
+
+			} else if (diffHours > 0) {
+				//if current time is over predicted releasedate then add delayed
+				updateDatabase(anime, animeID, { delayed: 1 });
+			}
+
+		} else {
+			//There's a new episode, update
+			//If we're on previously 0 released episodes, check if the new episodes is offset
+			if (anime.episodesReleased == 0 && lastEpisode > 1) {
+
+				//Check for first episode
+				const dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
+				const offset = dataAsc.data[0].episode - 1;
+
+				if (!isNaN(anime.episodesMax)) {
+					//If we previously set episodesMax, then update it with the new offset
+					updateDatabase(anime, animeID, { offset: offset, episodesMax: anime.episodesMax + offset });
+				} else {
+					updateDatabase(anime, animeID, { offset: offset });
+				}
+			}
+
+			//Predicted next release (7 days from last one)
+			const nextPredictedRelease = new Date(lastEpisodeData.created_at);
+			nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
+
+			updateDatabase(anime, animeID, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
+		}
+	}
+
+
+	/**
+	 * Populates animelist by inserting the provided anime
+	 * @param {string} animeID The ID of the anime
+	 * @param {dict} anime The anime as a dict: {name, thumbnail, episodesSeen}
+	 */
+	function populateAnimeList(anime, animeID, container) {
+		var time = '';
+		if (anime.episodesReleased == 0) {
+			//There's been no released episodes so we don't know when it will start airing
+			time = '?';
+		} else {
+			if (anime.episodesReleased != anime.episodesMax) {
+				const predictedRelease = new Date(anime.predictedRelease);
+				const currentDate = new Date();
+				const diff = predictedRelease - currentDate;
+				var timeLeft = diff / 60000; // 1m
+				var timeLeftUnit = "min";
+
+				if (timeLeft > 60) {
+					timeLeft = timeLeft / 60;
+					timeLeftUnit = "h";
+
+					if (timeLeft > 24) {
+						timeLeft = timeLeft / 24;
+						timeLeftUnit = "d";
+					}
+				}
+			}
+			switch (anime.delayed) {
+				case 1:
+					time += '<i>soon</i>'
+					break;
+				case 0:
+				case 2:
+				default:
+					//if .delayed is set to 0, 2 or undefined then display time normally
+					time += Math.round(timeLeft) + " " + timeLeftUnit;
+					break;
+			}
+		}
+
+		$(container).append(`
+			<div class="anime-item">
+				<div class="anime-item-cover">
+					<img src="` + anime.thumbnail + `" alt=""></img>
+					<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
+					<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.nextEpisode) + `">
+						<clippath>
+							<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
+								<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
+								<polygon points="70, 55 70, 145 145, 100" fill="#fff"></polygon>
+							</svg>
+						</clippath>
+					</a>
+					` +
+			(anime.episodesReleased == anime.episodesMax ? "" : `
+					<div class="triangle"></div>
+						<div class="countdown-container"> <span class="countdown-next-release tracker-tooltip">
+							` + time + ` 
+							<span class="tooltiptext">Predicted next episode</span>
+						</span>
+					</div>
+					`) + `
+				</div>
+				<div class="anime-text-container">
+					<div class="episode-container">
+						<span class="cover-seen-episodes tracker-tooltip">` + anime.episodesSeen + `
+							<span class="tooltiptext">Seen</span>
+						</span>
+						/ ` +
+			(anime.episodesReleased == anime.episodesMax ? "" :
+				`<span class="cover-released-episodes tracker-tooltip ` + (anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : "") + `">` + anime.episodesReleased + ` 
+							<span class="tooltiptext">Released</span>
+						</span>
+						/ `) +
+			`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
+							<span class="tooltiptext">Total</span>
+						</span>
+					</div>
+					<a href="https://pahe.win/a/` + animeID + `" class="anime-link">` + anime.name + `</a>
+				</div>
+			</div>
+		`);
+	}
+
+
+	/**
+	 * Detect progress in video and mark it as seen if progress passed a certain threshold
+	 * @param {string} id The ID of the anime
+	 */
+	function checkProgress(animes, id, episode) {
+		//Get currentTime and duration of video every x seconds
+		//Then check currentTime against duration to then check the .episode-seen checkbox
+		const interval = setInterval(function () {
+			if (id in animes === false) {
+				return;
+			}
+
+			const key = $('iframe.embed-responsive-item').attr('src');
+			const stream = GM_getValue(key, undefined);
+
+			if (stream === undefined) {
+				return;
+			}
+
+			const time = stream.currentTime;
+			const duration = stream.currentDuration;
+			const percentage = 0.85;
+			const timeReduction = 120;
+
+			//Only run if we got a duration update
+			if (!(duration > 0 && time > 0)) {
+				return
+			}
+
+			//magical math
+			const reducedDuration = duration - timeReduction;
+			if (time / reducedDuration < percentage) {
+				return;
+			}
+
+			$('.episode-seen').prop("checked", true);
+			updateEpisodes(animes[id], id, episode);
+
+			clearInterval(interval);	//stop interval
+		}, 3000); //Run every 3 seconds
+	}
+
+
+	/**
+	 * Send an http request to the anime/id and returnt he data
+	 * @param {string} id The hash ID of the anime 
+	 */
+	function syncAjax(url) {
+		var result = "";
+		$.ajax({
+			url: url,
+			async: false,
+			success: function (data) {
+				result = data;
+			}
+		});
+		return result;
+	}
+
+
+	/**
+	 * Inject CSS into head
+	 * @param {string} styleString A string of CSS styles to be added
+	 */
+	function injectCSS() {
+		const styleString = `
 			.theatre-info > #animetracker {
 				height: 25px;
 				width: auto;
@@ -358,569 +944,10 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			.new-episodes-color{
 				color: #00f3ff;
 			}
-		`);
-
-
-		//Make sure to fetch the newset version of database
-		var animes = GM_getValue('animes', {});
-
-		/**
-		 * Updates the database by fetching it, changing the properties and then saving it
-		 * @param {string} id The ID of the anime
-		 * @param {Object} args A dictionary of optional arguments with keys being the property in animes to update, and value being the value to set to the property
-		 */
-		function updateDatabase(id = null, args = {}) {
-			animes = GM_getValue('animes', {});
-
-			//Lets us call this function with no parameters to fetch an updated version of the database
-			if (!id) {
-				return;
-			}
-
-			//Add id to database if it doesn't exist already
-			if (!animes.hasOwnProperty(id)) {
-				animes[id] = {}
-			}
-
-			//Loop through every key in optional arguments and save them to the provided id
-			for (const [key, value] of Object.entries(args)) {
-				animes[id][key] = value;
-			}
-
-			GM_setValue("animes", animes);
-		}
-
-		/**
-		 * Removes an anime from the database
-		 * @param {string} id The ID of the anime
-		 */
-		function removeFromDatabase(id) {
-			animes = GM_getValue('animes', {});
-			delete animes[id];
-			GM_setValue("animes", animes);
-		}
-
-		/**
-		 * Adds an anime to the database
-		 * @param {string} id The ID of the anime
-		 * @param {string} name The name of the anime
-		 * @param {string} thumbnail thumnnail of the anime
-		 * @param {any} episodesMax 
-		 */
-		function addAnime(id, name, thumbnail, episodesMax = '?', episode = 0) {
-			//Get released episodes sorted by ascending to get the first episode to get the offset
-			var data = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=0');
-			var offset = 0;
-
-			//If there's no episodes released, data.data will be undefined, so only access it if it exists
-			if (data.data) {
-				offset = data.data[0].episode - 1;
-			}
-
-			//episodesMax could possibly be a string or not a number, in those cases set it to '?'
-			if (isNaN(episodesMax)) {
-				episodesMax = '?'
-			} else {
-				episodesMax = episodesMax * 1 //convert from string to either int or float
-				episodesMax += offset;
-			}
-
-			//Add anime to database
-			updateDatabase(id, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset })
-
-			//Don't check for released episodes if there are none
-			if (data.data) {
-				updateReleasedEpisodes(id);
-			}
-		}
-
-		/**
-		 * Updates the episodes seen count
-		 * @param {string} id The ID of the anime
-		 * @param {int} episodes the new value of episdes
-		 */
-		function updateEpisodes(id, episodes, allowDecrease = false) {
-			updateDatabase();
-			//Dont update anime progress if episodesSeen is higher than new value
-			if (!allowDecrease && animes[id].episodesSeen > episodes) {
-				return;
-			}
-			if (animes[id].episodesSeen > episodes) {
-				updateDatabase(id, { episodesSeen: episodes, restartPaginator: true });
-			} else {
-				updateDatabase(id, { episodesSeen: episodes });
-			}
-		}
-
-
-		/**
-		 * Fetches the next episode number using API
-		 * @param {string} id The ID of the anime
-		 * @param {int} episode current episode
-		 */
-		function getNextEpisode(id, episode, page = 1) {
-			for (; true; page++) {
-				const dataPage = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=' + page);
-				const index = dataPage.data.findIndex(item => item.episode > episode);
-
-				if (index > -1) {
-					return [dataPage.data[index].episode, page];
-				}
-
-				if (dataPage.last_page === page) {
-					return [episode + 1, page];
-				}
-			}
-		}
-
-		/**
-		 * Fetches the next episode number using API
-		 * @param {string} animeID The ID of the anime
-		 * @param {dict} anime anime object
-		 */
-		function updateNextEpisode(animeID, anime) {
-			if (anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
-				if (anime?.restartPaginator) {
-					anime.paginator = 1
-				}
-				const [nextEpisode, currentPage] = getNextEpisode(animeID, anime.episodesSeen, anime.paginator);
-				updateDatabase(animeID, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
-			}
-		}
-
-
-		/**
-		 * Detect progress in video and mark it as seen if progress passed a certain threshold
-		 * @param {string} id The ID of the anime
-		 */
-		function checkProgress(id, episode) {
-			//Get currentTime and duration of video every x seconds
-			//Then check currentTime against duration to then check the .episode-seen checkbox
-			var interval = setInterval(function () {
-				const key = $('iframe.embed-responsive-item').attr('src');
-				const stream = GM_getValue(key, undefined);
-
-				if (stream === undefined) {
-					return;
-				}
-
-				const time = stream.currentTime;
-				const duration = stream.currentDuration;
-				const percentage = 0.85;
-				const timeReduction = 120;
-
-				//Only run if we got a duration update
-				if (!(duration > 0 && time > 0)) {
-					return
-				}
-
-				//magical math
-				const reducedDuration = duration - timeReduction;
-				if (time / reducedDuration < percentage) {
-					return;
-				}
-
-				$('.episode-seen').prop("checked", true);
-				if (id in animes) {
-					updateEpisodes(id, episode);
-				}
-				clearInterval(interval);	//stop interval
-			}, 3000); //Run every 3 seconds
-		}
-
-		/**
-		 * Updates the amount of released episodes for the given anime
-		 * @param {string} animeID The ID of the anime
-		 */
-		function updateReleasedEpisodes(animeID) {
-			//Don't update if released episodes == max episodes
-			if (animes[animeID].episodesMax != '?' && animes[animeID].episodesReleased >= animes[animeID].episodesMax) {
-				return;
-			}
-
-			//Dont update if current date is lower than predicted next release time (minus 1 hours for margin)
-			const nextUpdate = new Date(animes[animeID].predictedRelease);
-			const currentDate = new Date();
-			currentDate.setHours(currentDate.getHours() + 1);
-			if (!isNaN(nextUpdate.getTime()) && currentDate < nextUpdate) {
-				//Don't skip if the episode is delayed, we will want to check more just to be sure
-				if (!animes[animeID].delayed) {
-					return;
-				}
-			}
-
-			//Get latest episode
-			var data = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_desc&page=0');
-
-			//there's a chance there is no episodes out yet, in those cases 
-			if (!data.data) {
-				//Don't check again for an hour, dont wannt stress the API
-				const nextPredictedRelease = new Date();
-				nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
-				updateDatabase(animeID, { predictedRelease: nextPredictedRelease });
-				return;
-			}
-
-
-			//Get last epsiode
-			const lastEpisodeData = data.data[0];
-			const lastEpisode = lastEpisodeData.episode > lastEpisodeData.episode2 ? lastEpisodeData.episode : lastEpisodeData.episode2;
-
-
-			//Check if there's a new episode
-			if (animes[animeID].episodesReleased == lastEpisode) {
-				//There's been no new episodes
-				const predictedRelease = new Date(animes[animeID].predictedRelease);
-				const diff = currentDate - predictedRelease;
-				const diffHours = diff / 3600000;// 1000*60*60
-
-				if (diffHours > 10) {
-					//if current time is 10h over predicted releasedate then add 7 days
-					predictedRelease.setDate(predictedRelease.getDate() + 7);
-					// delayed = 2 means it's delayed over 10 hours
-					updateDatabase(animeID, { predictedRelease: predictedRelease, delayed: 2 });
-
-				} else if (diffHours > 0) {
-					//if current time is over predicted releasedate then add delayed
-					updateDatabase(animeID, { delayed: 1 });
-				}
-
-			} else {
-				//There's a new episode, update
-				//If we're on previously 0 released episodes, check if the new episodes is offset
-				if (animes[animeID].episodesReleased == 0 && lastEpisode > 1) {
-
-					//Check for first episode
-					const dataAsc = syncAjax('/api?m=release&id=' + animeID + '&sort=episode_asc&page=0');
-					const offset = dataAsc.data[0].episode - 1;
-
-					if (!isNaN(animes[animeID].episodesMax)) {
-						//If we previously set episodesMax, then update it with the new offset
-						updateDatabase(animeID, { offset: offset, episodesMax: animes[animeID].episodesMax + offset });
-					} else {
-						updateDatabase(animeID, { offset: offset });
-					}
-				}
-
-				//Predicted next release (7 days from last one)
-				const nextPredictedRelease = new Date(lastEpisodeData.created_at);
-				nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
-
-				updateDatabase(animeID, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
-			}
-		}
-
-		/**
-		 * Populates animelist by inserting the provided anime
-		 * @param {string} animeID The ID of the anime
-		 * @param {dict} anime The anime as a dict: {name, thumbnail, episodesSeen}
-		 */
-		function populateAnimeList(animeID, anime, container) {
-
-			var time = '';
-			if (anime.episodesReleased == 0) {
-				//There's been no released episodes so we don't know when it will start airing
-				time = '?';
-			} else {
-				if (anime.episodesReleased != anime.episodesMax) {
-					const predictedRelease = new Date(animes[animeID].predictedRelease);
-					const currentDate = new Date();
-					const diff = predictedRelease - currentDate;
-					var timeLeft = diff / 60000; // 1m
-					var timeLeftUnit = "min";
-
-					if (timeLeft > 60) {
-						timeLeft = timeLeft / 60;
-						timeLeftUnit = "h";
-
-						if (timeLeft > 24) {
-							timeLeft = timeLeft / 24;
-							timeLeftUnit = "d";
-						}
-					}
-				}
-				switch (animes[animeID].delayed) {
-					case 1:
-						time += '<i>soon</i>'
-						break;
-					case 0:
-					case 2:
-					default:
-						//if .delayed is set to 0, 2 or undefined then display time normally
-						time += Math.round(timeLeft) + " " + timeLeftUnit;
-						break;
-				}
-			}
-
-			$(container).append(`
-				<div class="anime-item">
-					<div class="anime-item-cover">
-						<img src="` + anime.thumbnail + `" alt=""></img>
-						<a href="https://pahe.win/a/` + animeID + `" class="anime-cover-link"></a>
-						<a class="play-next" href="https://pahe.win/a/` + animeID + `/` + (anime.nextEpisode) + `">
-							<clippath>
-								<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
-									<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
-									<polygon points="70, 55 70, 145 145, 100" fill="#fff"></polygon>
-								</svg>
-							</clippath>
-						</a>
-						` +
-				(anime.episodesReleased == anime.episodesMax ? "" : `
-						<div class="triangle"></div>
-							<div class="countdown-container"> <span class="countdown-next-release tracker-tooltip">
-								` + time + ` 
-								<span class="tooltiptext">Predicted next episode</span>
-							</span>
-						</div>
-						`) + `
-					</div>
-					<div class="anime-text-container">
-						<div class="episode-container">
-							<span class="cover-seen-episodes tracker-tooltip">` + anime.episodesSeen + `
-								<span class="tooltiptext">Seen</span>
-							</span>
-							/ ` +
-				(anime.episodesReleased == anime.episodesMax ? "" :
-					`<span class="cover-released-episodes tracker-tooltip ` + (anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : "") + `">` + anime.episodesReleased + ` 
-								<span class="tooltiptext">Released</span>
-							</span>
-							/ `) +
-				`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
-								<span class="tooltiptext">Total</span>
-							</span>
-						</div>
-						<a href="https://pahe.win/a/` + animeID + `" class="anime-link">` + anime.name + `</a>
-					</div>
-				</div>
-			`);
-		}
-
-		/**
-		 * Send an http request to the anime/id and returnt he data
-		 * @param {string} id The hash ID of the anime 
-		 **/
-		function syncAjax(url) {
-			var result = "";
-			$.ajax({
-				url: url,
-				async: false,
-				success: function (data) {
-					result = data;
-				}
-			});
-			return result;
-		}
-
-		/**
-		 * All the code for the home page
-		 **/
-		function homePage() {
-			//Insert container for currently watching animes
-			$('.main-header').after(`
-			<section style="" class="animelist-main">
-				<article>
-					<div class="content-wrapper">
-						<div class="tracked-animes">
-							<h2>Your Animes</h2>
-							<div class="anime-list-wrapper">
-								<div class="anime-list row"></div>
-							</div>
-						</div>
-					</div>
-				</article>
-			</section>`);
-
-			//Update the amount of released episodes for each anime (or use cached)
-			for (const animeID in animes) {
-				updateReleasedEpisodes(animeID);
-			}
-
-			//Get the next episode
-			for (const animeID in animes) {
-				updateNextEpisode(animeID, animes[animeID]);
-			}
-
-			//Loop through every subscribed anime and add them to frontpage
-			const container = $('.anime-list');
-			for (const animeID in animes) {
-				populateAnimeList(animeID, animes[animeID], container);
-			}
-		}
-
-		/**
-		 * All the code for the anime info page
-		 **/
-		function animePage() {
-			//Insert html code
-			$('.anime-content').append(`
-				<div id="animetracker">
-					<span class="track-button"></span>
-					<div class="tracker-episodes">
-						Episodes: 
-						<input class="episodes-seen" type="number" value="0">
-						<input value="+" class="increment-episodes" type="button">
-					</div> 
-				</div>`
-			);
-
-			const id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
-			const episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
-
-			//Set proper values and classes depending on if the anime is added or not
-			if (id in animes) {
-				$('.track-button').addClass('remove-anime').text('Remove anime');
-				$('input.episodes-seen').val(animes[id].episodesSeen);
-
-				//If we previously set the total episodes to '?' (unknown) then check if it's been updated
-				if (animes[id].episodesMax == '?' || !Boolean(animes[id].episodesMax)) {
-					if (!isNaN(episodesMax)) {
-						updateDatabase(id, { episodesMax: episodesMax + animes[id].offset });
-					}
-				} else if (animes[id].episodesMax !== episodesMax + animes[id].offset) {
-					updateDatabase(id, { episodesMax: episodesMax + animes[id].offset });
-				}
-
-				//Check if previous thumbnail is failing, in that case fetch a new one
-				var tester = new Image();
-				tester.addEventListener('error', (function () {
-					var thumbnail = $(".youtube-preview").attr("href");
-					if (!thumbnail) {
-						thumbnail = $(".poster-image").attr("href");
-					}
-					updateDatabase(id, { thumbnail: thumbnail });
-				}));
-				tester.src = animes[id].thumbnail;
-
-			} else {
-				$('.track-button').addClass('add-anime').text('Track anime');
-				$('.tracker-episodes').addClass('hidden');
-			}
-
-			//On click either add or remove anime from dict
-			$('.track-button').click(function () {
-				if ($(this).hasClass("add-anime")) {
-					const name = $(".title-wrapper h1").text();
-					const episode = parseFloat($('input.episodes-seen').val());
-					const thumbnail = $(".youtube-preview").attr("href");
-					if (!thumbnail) {
-						thumbnail = $(".poster-image").attr("href");
-					}
-					addAnime(id, name, thumbnail, episodesMax, episode);
-					$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
-					$('.tracker-episodes').removeClass('hidden');
-				} else {
-					removeFromDatabase(id);
-					$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
-					$('.tracker-episodes').addClass('hidden');
-				}
-			});
-
-			//On click increment episodes
-			$('.increment-episodes').click(function () {
-				var episodeNumber = parseFloat($('input.episodes-seen').val()) + 1;
-				if (animes[id].offset > 0 && episodeNumber > 0 && episodeNumber < animes[id].offset + 1) {
-					episodeNumber = animes[id].offset + 1;
-				}
-				$('input.episodes-seen').val(episodeNumber);
-				updateEpisodes(id, episodeNumber, true);
-			});
-
-			//On input update save episode count
-			$(".episodes-seen").on("input", function () {
-				const episodeNumber = parseFloat($('input.episodes-seen').val());
-				updateEpisodes(id, episodeNumber, true);
-			});
-		}
-
-		/**
-		 * All the code for the player page
-		 **/
-		function playerPage(idHash) {
-			//Create track/remove buttons
-			$('.theatre-info').append(`
-				<div id="animetracker">
-					<div class="track-button add-anime hidden">Track anime</div>
-					<div class="tracker-episodes hidden">
-						Mark as seen 
-						<input class="episode-seen" type="checkbox">
-					</div> 
-				</div>`
-			);
-
-			var data = syncAjax('https://animepahe.com/anime/' + idHash);
-			const id = data.match(/(?<=anime-)\d+/)[0];
-			try {
-				var episodesMax = data.match(/(?<=<\/strong> )\d+(?=<)/)[0];
-			} catch (TypeError) {
-				var episodesMax = "?"
-			}
-
-			var episodeNumber = $('.theatre-info h1').text().split(" - ")[1].split(" ")[0];
-			episodeNumber = episodeNumber * 1; // convert string to either int or float
-
-			//Set proper values and classes depending on if the anime is added or not
-			if (id in animes) {
-				$('.tracker-episodes').removeClass('hidden');
-				if (animes[id].episodesSeen >= episodeNumber) {
-					$('.episode-seen').prop("checked", true);
-				}
-			} else {
-				$('.track-button').removeClass('hidden');
-			}
-
-
-			//On click add anime to list
-			$('.track-button').click(function () {
-				const name = $(".theatre-info h1 a").text();
-				const thumbnailSmall = $(".anime-poster").attr("src");
-				const thumbnail = thumbnailSmall.replace('.th.', '.');
-				addAnime(id, name, thumbnail, episodesMax, episodeNumber);
-				$(this).addClass("hidden");
-				$('.tracker-episodes').removeClass('hidden');
-			});
-
-			//Detect changes to episode-seen
-			$('.episode-seen').change(function () {
-				if ($(this).is(":checked")) {
-					updateEpisodes(id, episodeNumber);
-				}
-			});
-
-			//Detect progress in video and mark it as seen if progress passed a certain threshold
-			checkProgress(id, episodeNumber);
-		}
-
-		//Get url location
-		const urlSplits = window.location.href.split("/");
-		const subPage = urlSplits[3];
-		const idHash = urlSplits[4];
-
-		//Run different code depending on which subPage we're in
-		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
-			homePage();
-		} else if (subPage == "anime") {
-			animePage()
-		} else if (subPage == "play") {
-			playerPage(idHash)
-		}
-	}
-
-	/**
-	 * Gets the currentTime and duration from a video and saves it to database for the other script to read
-	 * Only runs on kwik.cx domains
-	 */
-	function kwik() {
-		var video = undefined;
-		const url = window.location.href;
-
-		setInterval(function () {
-			if (video) {
-				GM_setValue(url, { currentTime: video.currentTime, currentDuration: video.duration, date: new Date() });
-			} else {
-				video = $("video")[0];
-			}
-		}, 3000);
-
+		`;
+
+		const styleElement = document.createElement('style');
+		styleElement.textContent = styleString;
+		document.head.append(styleElement);
 	}
 })();
