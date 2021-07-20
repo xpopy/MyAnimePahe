@@ -246,9 +246,9 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				if (!thumbnail) {
 					thumbnail = $(".poster-image").attr("href");
 				}
-				addAnime(animes, id, name, thumbnail, episodesMax, episode);
 				$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
 				$('.tracker-episodes').removeClass('hidden');
+				addAnime(animes, id, name, thumbnail, episodesMax, episode);
 			} else {
 				removeFromDatabase(animes, animes[id]);
 				$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
@@ -323,9 +323,9 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			const name = $(".theatre-info h1 a").text();
 			const thumbnailSmall = $(".anime-poster").attr("src");
 			const thumbnail = thumbnailSmall.replace('.th.', '.');
-			addAnime(animes, id, name, thumbnail, episodesMax, episodeNumber);
 			$(this).addClass("hidden");
 			$('.tracker-episodes').removeClass('hidden');
+			addAnime(animes, id, name, thumbnail, episodesMax, episodeNumber);
 		});
 
 		//Detect changes to episode-seen
@@ -401,11 +401,12 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		animes[id] = anime;
 
 		//Add anime to database
-		updateDatabase(anime, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, offset: offset })
+		updateDatabase(anime, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, nextEpisode: 0, offset: offset })
 
 		//Don't check for released episodes if there are none
 		if (data.data) {
 			updateReleasedEpisodes(anime, id);
+			updateNextEpisode(anime);
 		}
 	}
 
@@ -429,11 +430,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * Fetches the next episode number using API
 	 */
 	function updateNextEpisode(anime) {
-		if (anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
+		if (anime.nextEpisode === undefined || anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
 			if (anime?.restartPaginator) {
 				anime.paginator = 1
 			}
-			const [nextEpisode, currentPage] = getNextEpisode(anime.animeID, anime.episodesSeen, anime.paginator);
+			const [nextEpisode, currentPage] = getNextEpisode(anime.id, anime.episodesSeen, anime.paginator);
 			updateDatabase(anime, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
 		}
 	}
