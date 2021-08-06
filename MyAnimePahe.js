@@ -80,7 +80,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	//Make sure to clear data (from streams) if they're not in use
 	clearStreams();
 
-	if (location.hostname == "animepahe.com") {
+	if (location.hostname == "animepahe.com" || location.hostname == "animepahe.org" || location.hostname == "animepahe.ru") {
 		//Run code on animepahe
 		animepahe();
 	} else if (location.hostname == "kwik.cx") {
