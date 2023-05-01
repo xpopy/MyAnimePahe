@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         MyAnimePahe 
+// @name         MyAnimePahe
 // @namespace    MyAnimePahe
 // @version      1.3
 // @description  Adds anime saving and episode tracking feature to AnimePahe
 // @author       Xpopy
-// @match        https://animepahe.com/*
+// @match        https://animepahe.ru/*
 // @match        https://kwik.cx/e/*
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @run-at       document-end
@@ -25,17 +25,17 @@ NOTES:
 /api?m=search&'
 /api?m=discord
 
-https://pahe.win/a/id/episode-number
+https://animepahe.ru/a/${id}
+https://animepahe.ru/api?m=release&id=${id}&sort=episode_asc&page=${page}
+episode_asc
+episode_desc
 
 
 TODO:
 
 BREAK UP FUNCTIONS, will make it easier to read and understand
-
 LOAD ANIMES BEFORE UPDATING, makes it feel snappier
-
-RUN ALL UPDATING TOGETHER, instead of having 1-2 functions 
-
+RUN ALL UPDATING TOGETHER, instead of having 1-2 functions
 GET LATEST RELEASES USING API, and check if theres been an update there first
 
 
@@ -43,7 +43,6 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		function getDirectText(element) {
 			let text = element.innerText;
 			for (let child of element) {
-				console.log(child.innerText)
 				text = text.replace(child.innerText, "")
 			}
 			return text;
@@ -61,8 +60,8 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				return;
 			}
 		}
-		
-		
+
+
 
 
 
@@ -74,15 +73,15 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 */
 
 
-(function () {
+(async function () {
 	'use strict';
 
 	//Make sure to clear data (from streams) if they're not in use
 	clearStreams();
 
-	if (location.hostname == "animepahe.com" || location.hostname == "animepahe.org" || location.hostname == "animepahe.ru") {
+	if ( location.hostname == "animepahe.org" || location.hostname == "animepahe.ru") {
 		//Run code on animepahe
-		animepahe();
+		await animepahe();
 	} else if (location.hostname == "kwik.cx") {
 		//Run code on kwik (iframed video)
 		kwik();
@@ -109,9 +108,9 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 	/**
 	 * Main script
-	 * Only runs on animepahe.com domains
+	 * Only runs on animepahe.ru domains
 	 */
-	function animepahe() {
+	async function animepahe() {
 		const animes = GM_getValue('animes', {});
 
 		//Inject css
@@ -123,11 +122,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		const idHash = urlSplits[4];
 
 		if (subPage == "" || subPage.includes("?page") || subPage == "#") {	//Home page
-			homePage(animes);
+			await homePage(animes);
 		} else if (subPage == "anime") {
 			animePage(animes)
 		} else if (subPage == "play") {
-			playerPage(animes, idHash)
+			await playerPage(animes, idHash)
 		}
 	}
 
@@ -153,7 +152,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	/**
 	 * All the code for the home page
 	 **/
-	function homePage(animes) {
+	async function homePage(animes) {
 		//Insert container for currently watching animes
 		$('.main-header').after(`
 		<section style="" class="animelist-main">
@@ -170,19 +169,31 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		</section>`);
 
 		//Update the amount of released episodes for each anime (or use cached)
-		for (const animeID in animes) {
-			updateReleasedEpisodes(animes[animeID]);
+
+		const keys = Object.keys(animes);
+		const sessions = await Promise.all(keys.map(async (animeId) => getAnimeSession(animeId)));
+		const animesWithSession = keys.map((animeId, index) => ({session: sessions[index], anime: animes[animeId]}));
+
+		for (const anime of animesWithSession) {
+			await updateReleasedEpisodes(anime.anime, anime.session);
 		}
 
 		//Get the next episode
-		for (const animeID in animes) {
-			updateNextEpisode(animes[animeID]);
-		}
+		const episodeSessions = await Promise.all(animesWithSession.map(async (anime) => updateNextEpisode(anime.anime, anime.session)));
 
 		//Loop through every subscribed anime and add them to frontpage
 		const container = $('.anime-list');
-		for (const animeID in animes) {
-			populateAnimeList(animes[animeID], container);
+		for (const [index, anime] of animesWithSession.entries()) {
+			const episodeSession = episodeSessions[index];
+			populateAnimeList(anime.anime, container, anime.session, episodeSession);
+		}
+
+		if(animesWithSession.length === 0){
+			$(container).append(`
+			<div>
+				You aren't tracking any series! Track an anime to see it here
+			</div>
+		`);
 		}
 	}
 
@@ -196,15 +207,16 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			<div id="animetracker">
 				<span class="track-button"></span>
 				<div class="tracker-episodes">
-					Episodes: 
+					Episodes:
 					<input class="episodes-seen" type="number" value="0">
 					<input value="+" class="increment-episodes" type="button">
-				</div> 
+				</div>
 			</div>`
 		);
 
 		const id = $('.anime-detail').attr('class').match(/(?<=anime-)\d+/)[0];
-		const episodesMax = parseFloat($('.anime-info strong:contains("Episodes:")')[0].nextSibling.data);
+		const episodeCount = $('.anime-info strong:contains("Episodes:")')[0];
+		const episodesMax = episodeCount !== undefined ? parseFloat(episodeCount.nextSibling.data) : '?';
 
 		//Set proper values and classes depending on if the anime is added or not
 		if (id in animes) {
@@ -224,7 +236,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			//Check if previous thumbnail is failing, in that case fetch a new one
 			var tester = new Image();
 			tester.addEventListener('error', (function () {
-				var thumbnail = $(".youtube-preview").attr("href");
+				let thumbnail = $(".youtube-preview").attr("href");
 				if (!thumbnail) {
 					thumbnail = $(".poster-image").attr("href");
 				}
@@ -238,17 +250,20 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		}
 
 		//On click either add or remove anime from dict
-		$('.track-button').click(function () {
+		$('.track-button').click(async function () {
 			if ($(this).hasClass("add-anime")) {
-				const name = $(".title-wrapper h1").text();
+				let name = $(".title-wrapper > h2").text();
+				if(name === ""){
+					name = $(".title-wrapper > h1 > span").text();
+				}
 				const episode = parseFloat($('input.episodes-seen').val());
-				const thumbnail = $(".youtube-preview").attr("href");
+				let thumbnail = $(".youtube-preview").attr("href");
 				if (!thumbnail) {
 					thumbnail = $(".poster-image").attr("href");
 				}
 				$(this).removeClass("add-anime").addClass("remove-anime").text("Remove anime");
 				$('.tracker-episodes').removeClass('hidden');
-				addAnime(animes, id, name, thumbnail, episodesMax, episode);
+				await addAnime(animes, id, name, thumbnail, episodesMax, episode);
 			} else {
 				removeFromDatabase(animes, animes[id]);
 				$(this).removeClass("remove-anime").addClass("add-anime").text("Track anime");
@@ -283,19 +298,19 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	/**
 	 * All the code for the player page
 	 **/
-	function playerPage(animes, idHash) {
+	await function playerPage(animes, idHash) {
 		//Create track/remove buttons
 		$('.theatre-info').append(`
 			<div id="animetracker">
 				<div class="track-button add-anime hidden">Track anime</div>
 				<div class="tracker-episodes hidden">
-					Mark as seen 
+					Mark as seen
 					<input class="episode-seen" type="checkbox">
-				</div> 
+				</div>
 			</div>`
 		);
 
-		const data = syncAjax('https://animepahe.com/anime/' + idHash);
+		const data = asyncAjax('https://animepahe.ru/anime/' + idHash);
 		const id = data.match(/(?<=anime-)\d+/)[0];
 		var episodesMax;
 		try {
@@ -376,11 +391,12 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	 * @param {string} id The ID of the anime
 	 * @param {string} name The name of the anime
 	 * @param {string} thumbnail thumnnail of the anime
-	 * @param {any} episodesMax 
+	 * @param {any} episodesMax
 	 */
-	function addAnime(animes, id, name, thumbnail, episodesMax = '?', episode = 0) {
+	async function addAnime(animes, id, name, thumbnail, episodesMax = '?', episode = 0) {
 		//Get released episodes sorted by ascending to get the first episode to get the offset
-		const data = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=0');
+		const encodedId = await getAnimeSession(id);
+		const data = await asyncAjax('/api?m=release&id=' + encodedId + '&sort=episode_asc&page=0');
 		var offset = 0;
 
 		//If there's no episodes released, data.data will be undefined, so only access it if it exists
@@ -404,11 +420,17 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		updateDatabase(anime, { name: name, thumbnail: thumbnail, episodesReleased: 0, episodesMax: episodesMax, episodesSeen: episode, nextEpisode: 0, offset: offset })
 
 		//Don't check for released episodes if there are none
+		//TODO: read `data` in case we can find all info there first and skip `updateReleasedEpisodes` and `updateNextEpisode`
 		if (data.data) {
-			updateReleasedEpisodes(anime, id);
-			updateNextEpisode(anime);
+			await updateReleasedEpisodes(anime, encodedId);
+			await updateNextEpisode(anime, encodedId);
 		}
 	}
+
+	// function getPageOfEpisode(episodeNumber) {
+	// 	const episodesPerPage = 30;
+	// 	return Math.floor(episodeNumber/episodesPerPage) + 1;
+	// }
 
 
 	/**
@@ -429,29 +451,31 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	/**
 	 * Fetches the next episode number using API
 	 */
-	function updateNextEpisode(anime) {
-		if (anime.nextEpisode === undefined || anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
+	async function updateNextEpisode(anime, encodedId) {
+		// if (anime.nextEpisode === undefined || anime.episodesSeen >= anime.nextEpisode || anime?.restartPaginator) {
 			if (anime?.restartPaginator) {
 				anime.paginator = 1
 			}
-			const [nextEpisode, currentPage] = getNextEpisode(anime.id, anime.episodesSeen, anime.paginator);
+			const [nextEpisode, currentPage, episodeSession] = await getNextEpisode(encodedId, anime.episodesSeen, anime.paginator);
 			updateDatabase(anime, { nextEpisode: nextEpisode, paginator: currentPage, restartPaginator: false });
-		}
+			return episodeSession;
+		// }
 	}
 
 
 	/**
 	 * Fetches the next episode number using API
 	 */
-	function getNextEpisode(id, episode, page = 1) {
+	async function getNextEpisode(encodedId, episode, page = 1) {
 		for (; true; page++) {
-			const dataPage = syncAjax('/api?m=release&id=' + id + '&sort=episode_asc&page=' + page);
+			const dataPage = await asyncAjax('/api?m=release&id=' + encodedId + '&sort=episode_asc&page=' + page);
 			const index = dataPage.data.findIndex(item => item.episode > episode);
 
 			if (index > -1) {
-				return [dataPage.data[index].episode, page];
+				return [dataPage.data[index].episode, page, dataPage.data[index].session];
 			}
 
+			// ??
 			if (dataPage.last_page === page) {
 				return [episode + 1, page];
 			}
@@ -460,9 +484,20 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 
 
 	/**
+	 *	Get encoded id of an anime
+	 */
+	async function getAnimeSession(id) {
+		const dataPage = await asyncAjax(`/a/${id}`);
+		const start = dataPage.indexOf("let id = ") + "let id = ".length + 1;
+		const end = dataPage.indexOf("\n", start) - 2;
+		return dataPage.slice(start, end)
+	}
+
+
+	/**
 	 * Updates the amount of released episodes for the given anime
 	 */
-	function updateReleasedEpisodes(anime) {
+	async function updateReleasedEpisodes(anime, encodedId) {
 		//Don't update if released episodes == max episodes
 		if (anime.episodesMax != '?' && anime.episodesReleased >= anime.episodesMax) {
 			return;
@@ -480,11 +515,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		}
 
 		//Get latest episode
-		var data = syncAjax('/api?m=release&id=' + anime.id + '&sort=episode_desc&page=0');
+		var data = await asyncAjax('/api?m=release&id=' + encodedId + '&sort=episode_desc&page=0');
 
-		//there's a chance there is no episodes out yet, in those cases 
+		//there's a chance there is no episodes out yet, in those cases
 		if (!data.data) {
-			//Don't check again for an hour, dont wannt stress the API
+			//Don't check again for an hour, dont want stress the API
 			const nextPredictedRelease = new Date();
 			nextPredictedRelease.setHours(nextPredictedRelease.getHours() + 7);
 			updateDatabase(anime, { predictedRelease: nextPredictedRelease });
@@ -500,7 +535,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			//There's been no new episodes
 			const predictedRelease = new Date(anime.predictedRelease);
 			const diff = currentDate - predictedRelease;
-			const diffHours = diff / 3600000;// 1000*60*60
+			const diffHours = diff / 3600000;// 1000*60*60 - 1 hour
 
 			if (diffHours > 10) {
 				//if current time is 10h over predicted releasedate then add 7 days
@@ -519,7 +554,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			if (anime.episodesReleased == 0 && lastEpisode > 1) {
 
 				//Check for first episode
-				const dataAsc = syncAjax('/api?m=release&id=' + anime.id + '&sort=episode_asc&page=0');
+				const dataAsc = await asyncAjax('/api?m=release&id=' + encodedId + '&sort=episode_asc&page=0');
 				const offset = dataAsc.data[0].episode - 1;
 
 				if (!isNaN(anime.episodesMax)) {
@@ -533,8 +568,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			//Predicted next release (7 days from last one)
 			const nextPredictedRelease = new Date(lastEpisodeData.created_at);
 			nextPredictedRelease.setDate(nextPredictedRelease.getDate() + 7);
-
-			updateDatabase(anime, { predictedRelease: nextPredictedRelease, episodesReleased: lastEpisode, delayed: 0 });
+			updateDatabase(anime, { predictedRelease: nextPredictedRelease.toString(), episodesReleased: lastEpisode, delayed: 0 });
 		}
 	}
 
@@ -542,7 +576,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	/**
 	 * Populates animelist by inserting the provided anime
 	 */
-	function populateAnimeList(anime, container) {
+	function populateAnimeList(anime, container, encodedId, episodeSession) {
 		var time = '';
 		if (anime.episodesReleased == 0) {
 			//There's been no released episodes so we don't know when it will start airing
@@ -581,9 +615,9 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 		$(container).append(`
 			<div class="anime-item">
 				<div class="anime-item-cover">
-					<img src="` + anime.thumbnail + `" alt=""></img>
-					<a href="https://pahe.win/a/` + anime.id + `" class="anime-cover-link"></a>
-					<a class="play-next" href="https://pahe.win/a/` + anime.id + `/` + (anime.nextEpisode) + `">
+					<img src="${anime.thumbnail}" alt=""></img>
+					<a href="https://animepahe.ru/a/${anime.id}" class="anime-cover-link"></a>
+					<a class="play-next" href="https://animepahe.ru/play/${encodedId}/${episodeSession}">
 						<clippath>
 							<svg class="play-button" viewBox="0 0 200 200" alt="Play Video">
 								<circle cx="100" cy="100" r="90" fill="none" stroke-width="15" stroke="#fff"></circle>
@@ -591,32 +625,27 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 							</svg>
 						</clippath>
 					</a>
-					` +
-			(anime.episodesReleased == anime.episodesMax ? "" : `
-					<div class="triangle"></div>
-						<div class="countdown-container"> <span class="countdown-next-release tracker-tooltip">
-							` + time + ` 
-							<span class="tooltiptext">Predicted next episode</span>
-						</span>
-					</div>
-					`) + `
 				</div>
 				<div class="anime-text-container">
 					<div class="episode-container">
-						<span class="cover-seen-episodes tracker-tooltip">` + anime.episodesSeen + `
+						<span class="cover-seen-episodes tracker-tooltip">${anime.episodesSeen}
 							<span class="tooltiptext">Seen</span>
 						</span>
-						/ ` +
-			(anime.episodesReleased == anime.episodesMax ? "" :
-				`<span class="cover-released-episodes tracker-tooltip ` + (anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : "") + `">` + anime.episodesReleased + ` 
-							<span class="tooltiptext">Released</span>
-						</span>
-						/ `) +
-			`<span class="cover-max-episodes tracker-tooltip">` + anime.episodesMax + ` 
+						/
+						${(anime.episodesReleased == anime.episodesMax ? "" :
+						`<span class="cover-released-episodes tracker-tooltip ${anime.episodesReleased > anime.episodesSeen ? "new-episodes-color" : ""}"> ${anime.episodesReleased} <span class="tooltiptext">Released</span>
+						</span> / `) }
+						<span class="cover-max-episodes tracker-tooltip">${anime.episodesMax}
 							<span class="tooltiptext">Total</span>
 						</span>
 					</div>
-					<a href="https://pahe.win/a/` + anime.id + `" class="anime-link">` + anime.name + `</a>
+					${anime.episodesReleased == anime.episodesMax ? "" : `
+					<div class="countdown-container tracker-tooltip"> <span class="countdown-next-release">
+						${time}
+						<span class="tooltiptext">Predicted next episode</span>
+						</span>
+					</div>`}
+					<a href="https://animepahe.ru/a/${anime.id}" class="anime-link">${anime.name}</a>
 				</div>
 			</div>
 		`);
@@ -668,11 +697,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 	/**
 	 * Send an http request to the anime/id and returnt he data
 	 */
-	function syncAjax(url) {
+	async function asyncAjax(url) {
 		var result = "";
-		$.ajax({
+		console.log("asyncAjax url", url)
+		await $.ajax({
 			url: url,
-			async: false,
 			success: function (data) {
 				result = data;
 			}
@@ -697,7 +726,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				height: 25px;
 				width: auto;
 				position: absolute;
-				top: 210px;
+				top: 245px;
 			}
 			#animetracker .track-button {
 				padding: 2px;
@@ -744,7 +773,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			}
 			/* Show the tooltip text when you mouse over the tooltip container */
 			.tracker-tooltip:hover .tooltiptext {
-				visibility: visible;	
+				visibility: visible;
 			}
 			/* Position the tooltip text - see examples below! */
 			.tracker-tooltip .tooltiptext {
@@ -816,14 +845,11 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				min-height: 240px;
 				/*justify-content: center;*/
 			}
-			section.animelist-main .content-wrapper .anime-list.row:empty::after {
-				content: "You aren't tracking any series! Track an anime to see it here";
-			}
 			.anime-item {
-				width: 161px;
+				width: 198px;
 				margin-right: 11px;
-				margin-left: 11px;
-				margin-bottom: 22px;
+				margin-left: 0px;
+				margin-bottom: 11px;
 				position: relative;
 				overflow: hidden;
 			}
@@ -832,7 +858,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 				width: 100%;
 				position: absolute;
 				left: 0;
-				background: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 30%, rgba(255,255,255,0) 50%);
+				background: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 10%, rgba(255,255,255,0) 40%);
 			}
 			.anime-item img {
 				width: 100%;
@@ -853,7 +879,7 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			.anime-item .play-next{
 				position: absolute;
 				top: 0;
-				bottom: 80px;
+				bottom: 60px;
 				left: 0;
 				right: 0;
 				filter: drop-shadow(black 0px 0px 15px);
@@ -876,10 +902,10 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			}
 			.anime-item .countdown-container {
 				position: absolute;
-				top: 0px;
-				right: 0;
+				right: 6px;
 				width: 34px;
 				text-align: center;
+				pointer-events: all;
 			}
 			.triangle {
 				width: 0;
@@ -898,30 +924,27 @@ GET LATEST RELEASES USING API, and check if theres been an update there first
 			.anime-link {
 				color: white;
 				font-size: 15px;
-				padding-bottom: 3px;
+				padding: 3px;
 				position: relative;
 				text-shadow: 0px 0px 3px black;
 				align-self: flex-end;
 				overflow: hidden;
 				text-overflow: ellipsis;
-				-webkit-line-clamp: 2;
-				display: -webkit-box;
-				-webkit-box-orient: vertical;
 				pointer-events: all;
+				white-space: nowrap;
 			}
 			.anime-text-container {
 				position: absolute;
 				width: 100%;
 				bottom: 0;
 				padding: 5px;
-				height: 85px;
+				height: 58px;
 				display: flex;
 				pointer-events: none;
 			}
 			.episode-container {
 				position: absolute;
-				right: 10px;
-				top: 10px;
+				left: 10px;
 				text-shadow: 0px 0px 3px black;
 				pointer-events: all;
 				color: #ffffffba
